@@ -1,0 +1,85 @@
+"""FastAPI application entry point"""
+import logging
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+
+from app.config import ALLOWED_ORIGINS, FRONTEND_BUILD_DIR
+from app.database import db
+from app.routers import folders, samples, tags, collections, search
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan events"""
+    # Startup
+    logger.info("Starting Audio Sample Manager backend...")
+    health = db.check_health()
+    logger.info(f"Database health: {'OK' if health else 'FAILED'}")
+
+    yield
+
+    # Shutdown
+    logger.info("Shutting down Audio Sample Manager backend...")
+
+
+# Create FastAPI app
+app = FastAPI(
+    title="Audio Sample Manager API",
+    description="API for managing audio sample libraries",
+    version="0.1.0",
+    lifespan=lifespan
+)
+
+# CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# API routes
+app.include_router(folders.router, prefix="/api/folders", tags=["folders"])
+app.include_router(samples.router, prefix="/api/samples", tags=["samples"])
+app.include_router(tags.router, prefix="/api/tags", tags=["tags"])
+app.include_router(collections.router, prefix="/api/collections", tags=["collections"])
+app.include_router(search.router, prefix="/api/search", tags=["search"])
+
+
+@app.get("/api/health")
+async def health_check():
+    """Health check endpoint"""
+    db_healthy = db.check_health()
+    return {
+        "status": "healthy" if db_healthy else "unhealthy",
+        "database": db_healthy
+    }
+
+
+# Serve frontend static files in production
+if FRONTEND_BUILD_DIR.exists():
+    app.mount("/assets", StaticFiles(directory=FRONTEND_BUILD_DIR / "assets"), name="assets")
+
+    @app.get("/{full_path:path}")
+    async def serve_frontend(full_path: str):
+        """Serve frontend application"""
+        # Serve index.html for all non-API routes
+        if not full_path.startswith("api/"):
+            index_path = FRONTEND_BUILD_DIR / "index.html"
+            if index_path.exists():
+                return FileResponse(index_path)
+        return {"message": "Frontend not built"}
+else:
+    logger.warning("Frontend build directory not found. Run 'npm run build' in frontend directory.")
