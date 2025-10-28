@@ -5,7 +5,6 @@ import Sidebar from '../components/Sidebar'
 import FolderBrowserModal from '../components/FolderBrowserModal'
 import SettingsModal from '../components/SettingsModal'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card'
-import { Button } from '../components/ui/Button'
 import { MusicIcon, TagIcon, FolderIcon, PlusIcon, CollectionIcon } from '../components/ui/Icons'
 
 export default function Dashboard() {
@@ -167,10 +166,13 @@ export default function Dashboard() {
                   <p className="text-xs text-muted-foreground mb-4">
                     Start by scanning a folder containing audio files
                   </p>
-                  <Button onClick={() => setIsFolderBrowserOpen(true)} size="sm">
+                  <button
+                    onClick={() => setIsFolderBrowserOpen(true)}
+                    className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors h-9 px-3 bg-primary text-primary-foreground hover:opacity-90"
+                  >
                     <PlusIcon className="mr-2" />
                     Add Folders
-                  </Button>
+                  </button>
                 </div>
               )}
             </CardContent>

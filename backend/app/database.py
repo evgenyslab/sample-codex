@@ -31,6 +31,31 @@ class Database:
         conn.execute("PRAGMA foreign_keys = ON")
         return conn
 
+    def _migrate_add_metadata_columns(self, conn: sqlite3.Connection):
+        """Add metadata columns to existing samples table if they don't exist"""
+        try:
+            # Check if columns exist
+            cursor = conn.execute("PRAGMA table_info(samples)")
+            columns = [row[1] for row in cursor.fetchall()]
+
+            # Add missing columns
+            if 'title' not in columns:
+                conn.execute("ALTER TABLE samples ADD COLUMN title TEXT")
+                logger.info("Added 'title' column to samples table")
+
+            if 'artist' not in columns:
+                conn.execute("ALTER TABLE samples ADD COLUMN artist TEXT")
+                logger.info("Added 'artist' column to samples table")
+
+            if 'album' not in columns:
+                conn.execute("ALTER TABLE samples ADD COLUMN album TEXT")
+                logger.info("Added 'album' column to samples table")
+
+            conn.commit()
+        except Exception as e:
+            logger.error(f"Error during metadata columns migration: {e}")
+            # Don't raise - table might not exist yet
+
     def _create_tables(self, conn: sqlite3.Connection):
         """Create all database tables"""
 
@@ -47,11 +72,17 @@ class Database:
                 format TEXT,
                 bit_depth INTEGER,
                 channels INTEGER,
+                title TEXT,
+                artist TEXT,
+                album TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 last_modified TIMESTAMP,
                 indexed BOOLEAN DEFAULT 0
             )
         """)
+
+        # Migration: Add new metadata columns if they don't exist
+        self._migrate_add_metadata_columns(conn)
 
         # Full-text search virtual table
         conn.execute("""

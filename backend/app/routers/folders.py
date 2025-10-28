@@ -1,12 +1,14 @@
 """Folder management API endpoints"""
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 from typing import List, Optional
 import os
 from pathlib import Path
+import json
+import asyncio
 
 from app.database import db
-from app.services.scanner import scan_folders
+from app.services.scanner import scan_folders, scan_folders_with_progress
 
 router = APIRouter()
 
@@ -110,3 +112,82 @@ async def remove_folder(folder_id: int):
             raise HTTPException(status_code=404, detail="Folder not found")
 
         return {"status": "deleted", "id": folder_id}
+
+
+@router.websocket("/ws/scan")
+async def websocket_scan_endpoint(websocket: WebSocket):
+    """WebSocket endpoint for real-time scan progress"""
+    await websocket.accept()
+
+    try:
+        # Receive scan request
+        data = await websocket.receive_text()
+        request_data = json.loads(data)
+        folder_paths = request_data.get('paths', [])
+
+        if not folder_paths:
+            await websocket.send_json({
+                "type": "error",
+                "message": "No folder paths provided"
+            })
+            await websocket.close()
+            return
+
+        # Add folders to tracking
+        with db.get_connection() as conn:
+            for path in folder_paths:
+                conn.execute(
+                    "INSERT OR IGNORE INTO folders (path, status) VALUES (?, ?)",
+                    (path, "pending")
+                )
+            conn.commit()
+
+        # Define progress callback
+        async def send_progress(phase: str, progress: int, message: str):
+            try:
+                await websocket.send_json({
+                    "type": "progress",
+                    "phase": phase,
+                    "progress": progress,
+                    "message": message
+                })
+            except Exception as e:
+                print(f"Error sending progress: {e}")
+
+        # Run scan in thread pool to avoid blocking
+        loop = asyncio.get_event_loop()
+
+        def progress_callback(phase, progress, message):
+            asyncio.run_coroutine_threadsafe(
+                send_progress(phase, progress, message),
+                loop
+            )
+
+        # Run scan
+        await loop.run_in_executor(
+            None,
+            lambda: scan_folders_with_progress(folder_paths, progress_callback)
+        )
+
+        # Send completion message
+        await websocket.send_json({
+            "type": "complete",
+            "message": "Scan completed successfully"
+        })
+
+    except WebSocketDisconnect:
+        print("Client disconnected")
+    except Exception as e:
+        print(f"WebSocket error: {e}")
+        try:
+            await websocket.send_json({
+                "type": "error",
+                "message": str(e)
+            })
+        except:
+            pass
+    finally:
+        try:
+            await websocket.close()
+        except:
+            pass

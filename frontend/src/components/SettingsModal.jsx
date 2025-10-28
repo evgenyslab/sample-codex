@@ -1,5 +1,4 @@
 import { useEffect } from 'react'
-import { Button } from './ui/Button'
 import { XIcon } from './ui/Icons'
 
 const SettingsModal = ({ isOpen, onClose }) => {
@@ -20,8 +19,14 @@ const SettingsModal = ({ isOpen, onClose }) => {
   const dbLocation = '/backend/data/samples.db' // This would come from API in production
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-2xl w-full max-w-2xl border-2 border-gray-200">
+    <div
+      className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-lg shadow-2xl w-full max-w-2xl border-2 border-gray-200"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
           <div className="flex items-center justify-between">
@@ -49,16 +54,15 @@ const SettingsModal = ({ isOpen, onClose }) => {
                 readOnly
                 className="flex-1 px-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-md font-mono text-gray-700"
               />
-              <Button
-                size="sm"
-                variant="secondary"
+              <button
                 onClick={() => {
                   // TODO: Implement file picker for database location
                   alert('Database location change will be implemented')
                 }}
+                className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors h-9 px-3 bg-secondary text-secondary-foreground hover:opacity-80"
               >
                 Change
-              </Button>
+              </button>
             </div>
             <p className="text-xs text-gray-500 mt-2">
               The location where your audio sample database is stored
@@ -84,35 +88,34 @@ const SettingsModal = ({ isOpen, onClose }) => {
           <div className="pt-4 border-t border-gray-200">
             <h3 className="text-sm font-medium text-gray-900 mb-3">Database Actions</h3>
             <div className="space-y-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full justify-start"
+              <button
                 onClick={() => alert('Export database feature coming soon')}
+                className="w-full justify-start inline-flex items-center rounded-md text-sm font-medium transition-colors h-9 px-3 border border-input hover:bg-gray-200 hover:text-foreground"
               >
                 Export Database
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full justify-start text-red-600 hover:text-red-700"
+              </button>
+              <button
                 onClick={() => {
                   if (confirm('Are you sure you want to clear all data? This cannot be undone.')) {
                     alert('Clear database feature coming soon')
                   }
                 }}
+                className="w-full justify-start inline-flex items-center rounded-md text-sm font-medium transition-colors h-9 px-3 border border-input text-red-600 hover:bg-gray-200 hover:text-red-700"
               >
                 Clear All Data
-              </Button>
+              </button>
             </div>
           </div>
         </div>
 
         {/* Footer */}
         <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-end">
-          <Button onClick={onClose} size="sm">
+          <button
+            onClick={onClose}
+            className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors h-9 px-3 bg-primary text-primary-foreground hover:opacity-90"
+          >
             Close
-          </Button>
+          </button>
         </div>
       </div>
     </div>

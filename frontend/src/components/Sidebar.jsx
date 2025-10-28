@@ -1,5 +1,6 @@
+import { CollectionIcon, DashboardIcon, FolderIcon, PlusIcon, SearchIcon, SettingsIcon, TagIcon } from './ui/Icons'
+
 import { useState } from 'react'
-import { DashboardIcon, FolderIcon, TagIcon, CollectionIcon, SearchIcon, PlusIcon, SettingsIcon } from './ui/Icons'
 
 const Sidebar = ({ onAddFolders, onOpenSettings, stats, health }) => {
   const [activeView, setActiveView] = useState('dashboard')
@@ -24,7 +25,7 @@ const Sidebar = ({ onAddFolders, onOpenSettings, stats, health }) => {
       <div className="px-3 pb-4">
         <button
           onClick={onAddFolders}
-          className="w-full text-left px-3 py-2 rounded-md transition-colors flex items-center gap-3 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/80"
+          className="w-full text-left px-3 py-2 rounded-md transition-colors flex items-center gap-3 text-sm font-medium bg-primary hover:bg-gray-100 text-primary-foreground"
         >
           <PlusIcon className="w-4 h-4" />
           <span>Add Folders</span>
@@ -39,10 +40,10 @@ const Sidebar = ({ onAddFolders, onOpenSettings, stats, health }) => {
             <button
               key={item.id}
               onClick={() => setActiveView(item.id)}
-              className={`w-full text-left px-3 py-2 rounded-md transition-colors flex items-center gap-3 text-sm font-medium ${
+              className={`w-full text-left px-3 py-2 rounded-md transition-colors flex items-center gap-3 text-sm font-medium hover:bg-gray-100 ${
                 activeView === item.id
-                  ? 'bg-muted text-foreground'
-                  : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground'
+                  ? 'bg-muted text-foreground bg-gray-50'  // active view css
+                  : 'text-muted-foreground'
               }`}
             >
               <Icon className="w-4 h-4" />
@@ -57,7 +58,7 @@ const Sidebar = ({ onAddFolders, onOpenSettings, stats, health }) => {
         {/* Settings Button */}
         <button
           onClick={onOpenSettings}
-          className="w-full text-left px-3 py-2 rounded-md transition-colors flex items-center gap-3 text-sm font-medium text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+          className="w-full text-left px-3 py-2 rounded-md transition-colors flex items-center gap-3 text-sm font-medium text-muted-foreground hover:bg-gray-100"
         >
           <SettingsIcon className="w-4 h-4" />
           <span>Settings</span>

@@ -1,13 +1,16 @@
-import { useState, useEffect } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { browseFolders, scanFolders } from '../services/api'
-import { Button } from './ui/Button'
-import { FolderIcon, ChevronUpIcon, XIcon } from './ui/Icons'
+import { CornerLeftUpIcon, FolderIcon, XIcon } from './ui/Icons'
+import { useEffect, useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+
+import { browseFolders } from '../services/api'
+import { useScanProgress } from '../hooks/useScanProgress.jsx'
 
 const FolderBrowserModal = ({ isOpen, onClose }) => {
   const [currentPath, setCurrentPath] = useState('')
   const [selectedPaths, setSelectedPaths] = useState([])
+  const [isScanning, setIsScanning] = useState(false)
   const queryClient = useQueryClient()
+  const { startScan } = useScanProgress()
 
   // Add escape key listener
   useEffect(() => {
@@ -28,16 +31,6 @@ const FolderBrowserModal = ({ isOpen, onClose }) => {
       return response.data
     },
     enabled: isOpen,
-  })
-
-  const scanMutation = useMutation({
-    mutationFn: (paths) => scanFolders(paths),
-    onSuccess: () => {
-      queryClient.invalidateQueries(['folders'])
-      queryClient.invalidateQueries(['samples'])
-      setSelectedPaths([])
-      onClose()
-    },
   })
 
   useEffect(() => {
@@ -67,14 +60,34 @@ const FolderBrowserModal = ({ isOpen, onClose }) => {
   }
 
   const handleScan = () => {
-    if (selectedPaths.length > 0) {
-      scanMutation.mutate(selectedPaths)
+    if (selectedPaths.length > 0 && !isScanning) {
+      setIsScanning(true)
+
+      // Start WebSocket scan
+      startScan(selectedPaths)
+
+      // Wait a bit then close modal and refresh data
+      setTimeout(() => {
+        setIsScanning(false)
+        setSelectedPaths([])
+        onClose()
+
+        // Refresh queries after scan starts
+        queryClient.invalidateQueries(['folders'])
+        queryClient.invalidateQueries(['samples'])
+      }, 1000)
     }
   }
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-2xl w-full max-w-3xl max-h-[80vh] flex flex-col border-2 border-gray-200">
+    <div
+      className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-lg shadow-2xl w-full max-w-3xl h-[80vh] flex flex-col border-2 border-gray-200"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
           <div className="flex items-center justify-between">
@@ -96,25 +109,24 @@ const FolderBrowserModal = ({ isOpen, onClose }) => {
         {/* Current Path & Controls */}
         <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
           <div className="flex items-center gap-2 mb-3">
-            <Button
-              variant="secondary"
-              size="sm"
+            <button
               onClick={handleGoUp}
               disabled={!folderData?.parent}
+              className="p-2 rounded-md transition-colors bg-gray-200 text-gray-700 hover:bg-gray-300 disabled:opacity-50 disabled:pointer-events-none"
+              title="Go up one folder"
             >
-              <ChevronUpIcon className="mr-1.5" />
-              Up
-            </Button>
+              <CornerLeftUpIcon className="w-4 h-4" />
+            </button>
             <div className="flex-1 px-3 py-2 bg-white border border-gray-300 rounded-md text-xs font-mono overflow-x-auto whitespace-nowrap text-gray-900">
               {folderData?.path || 'Loading...'}
             </div>
-            <Button
+            <button
               onClick={handleSelectCurrent}
               disabled={!folderData?.path || selectedPaths.includes(folderData?.path)}
-              size="sm"
+              className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors h-9 px-3 bg-primary text-primary-foreground bg-gray-200 hover:bg-gray-300 disabled:opacity-50 disabled:pointer-events-none"
             >
               Select
-            </Button>
+            </button>
           </div>
 
           {selectedPaths.length > 0 && (
@@ -170,20 +182,19 @@ const FolderBrowserModal = ({ isOpen, onClose }) => {
 
         {/* Footer */}
         <div className="px-6 py-4 border-t border-gray-200 bg-white flex items-center justify-between">
-          <Button
-            variant="ghost"
+          <button
             onClick={onClose}
-            size="sm"
+            className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors h-9 px-3 hover:bg-gray-200 hover:text-foreground"
           >
             Cancel
-          </Button>
-          <Button
+          </button>
+          <button
             onClick={handleScan}
-            disabled={selectedPaths.length === 0 || scanMutation.isPending}
-            size="sm"
+            disabled={selectedPaths.length === 0 || isScanning}
+            className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors h-9 px-3 bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 disabled:pointer-events-none"
           >
-            {scanMutation.isPending ? 'Starting Scan...' : `Scan ${selectedPaths.length} Folder${selectedPaths.length !== 1 ? 's' : ''}`}
-          </Button>
+            {isScanning ? 'Starting Scan...' : `Scan ${selectedPaths.length} Folder${selectedPaths.length !== 1 ? 's' : ''}`}
+          </button>
         </div>
       </div>
     </div>

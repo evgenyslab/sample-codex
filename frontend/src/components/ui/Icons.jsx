@@ -1,14 +1,15 @@
 // Icons using @tabler/icons-react library
 import {
-  IconLayoutDashboard,
-  IconFolder,
-  IconTag,
   IconBooks,
-  IconSearch,
-  IconMusic,
-  IconSettings,
-  IconPlus,
   IconChevronUp,
+  IconCornerLeftUp,
+  IconFolder,
+  IconLayoutDashboard,
+  IconMusic,
+  IconPlus,
+  IconSearch,
+  IconSettings,
+  IconTag,
   IconX
 } from '@tabler/icons-react'
 
@@ -51,4 +52,8 @@ export const ChevronUpIcon = ({ className = "w-4 h-4" }) => (
 
 export const XIcon = ({ className = "w-4 h-4" }) => (
   <IconX className={className} stroke={1.5} />
+)
+
+export const CornerLeftUpIcon = ({ className = "w-4 h-4" }) => (
+  <IconCornerLeftUp className={className} stroke={1.5} />
 )
