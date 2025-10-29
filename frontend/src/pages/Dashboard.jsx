@@ -1,11 +1,12 @@
-import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { healthCheck, listSamples, listTags, getScannedFolders, listCollections } from '../services/api'
-import Sidebar from '../components/Sidebar'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card'
+import { CollectionIcon, FolderIcon, MusicIcon, PlusIcon, TagIcon } from '../components/ui/Icons'
+import { getScannedFolders, healthCheck, listCollections, listSamples, listTags } from '../services/api'
+
 import FolderBrowserModal from '../components/FolderBrowserModal'
 import SettingsModal from '../components/SettingsModal'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card'
-import { MusicIcon, TagIcon, FolderIcon, PlusIcon, CollectionIcon } from '../components/ui/Icons'
+import Sidebar from '../components/Sidebar'
+import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
 
 export default function Dashboard() {
   const [isFolderBrowserOpen, setIsFolderBrowserOpen] = useState(false)
@@ -127,88 +128,10 @@ export default function Dashboard() {
             </Card>
           </div>
 
-          {/* Recent Samples */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Recent Samples</CardTitle>
-              <CardDescription className="text-xs">Your most recently added audio files</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {samplesData?.samples && samplesData.samples.length > 0 ? (
-                <div className="space-y-2">
-                  {samplesData.samples.map((sample) => (
-                    <div
-                      key={sample.id}
-                      className="flex items-center justify-between p-3 rounded-md hover:bg-muted transition-colors cursor-pointer"
-                    >
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <MusicIcon className="w-4 h-4 text-muted-foreground" />
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium truncate">{sample.filename}</p>
-                          <p className="text-xs text-muted-foreground truncate">{sample.filepath}</p>
-                        </div>
-                      </div>
-                      <div className="text-right ml-4">
-                        <p className="text-xs font-medium">
-                          {sample.duration ? `${sample.duration.toFixed(2)}s` : 'N/A'}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {sample.format || 'Unknown'}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-12">
-                  <MusicIcon className="w-12 h-12 text-muted-foreground/20 mx-auto mb-3" />
-                  <h3 className="font-medium text-sm mb-1">No samples found</h3>
-                  <p className="text-xs text-muted-foreground mb-4">
-                    Start by scanning a folder containing audio files
-                  </p>
-                  <button
-                    onClick={() => setIsFolderBrowserOpen(true)}
-                    className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors h-9 px-3 bg-primary text-primary-foreground hover:opacity-90"
-                  >
-                    <PlusIcon className="mr-2" />
-                    Add Folders
-                  </button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Scanned Folders */}
-          {foldersData?.folders && foldersData.folders.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Scanned Folders</CardTitle>
-                <CardDescription className="text-xs">Directories being monitored for audio files</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {foldersData.folders.map((folder) => (
-                    <div
-                      key={folder.id}
-                      className="flex items-center justify-between p-3 rounded-md hover:bg-muted transition-colors"
-                    >
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <FolderIcon className="w-4 h-4 text-muted-foreground" />
-                        <span className="text-xs font-mono truncate text-muted-foreground">{folder.path}</span>
-                      </div>
-                      <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded ml-2">
-                        {folder.sample_count}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
         </div>
       </div>
 
-      {/* Folder Browser Modal */}
+      {/* Folder Browser Modal*/}
       <FolderBrowserModal
         isOpen={isFolderBrowserOpen}
         onClose={() => setIsFolderBrowserOpen(false)}
