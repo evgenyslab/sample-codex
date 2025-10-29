@@ -90,25 +90,25 @@ const FolderBrowserModal = ({ isOpen, onClose }) => {
 
   return (
     <div
-      className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50"
+      className="fixed inset-0 bg-card backdrop-blur-md flex items-center justify-center z-50"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-lg shadow-2xl w-full max-w-3xl h-[80vh] flex flex-col border-2 border-gray-200"
+        className="bg-card rounded-lg shadow-2xl w-full max-w-3xl h-[80vh] flex flex-col border-2 border-border"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+        <div className="bg-card px-6 py-4 border-b border-border">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold tracking-tight text-gray-900">Select Folders to Scan</h2>
-              <p className="text-xs text-gray-600 mt-1">
+              <h2 className="text-lg font-semibold tracking-tight text-card-foreground">Select Folders to Scan</h2>
+              <p className="text-xs text-muted-foreground mt-1">
                 Navigate to and select folders containing audio files
               </p>
             </div>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
+              className="text-muted-foreground hover:text-foreground transition-colors"
             >
               <XIcon className="w-5 h-5" />
             </button>
@@ -116,69 +116,69 @@ const FolderBrowserModal = ({ isOpen, onClose }) => {
         </div>
 
         {/* Current Path & Controls */}
-        <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+        <div className="px-6 py-4 border-b border-border">
           <div className="flex items-center gap-2">
             <button
               onClick={handleGoUp}
               disabled={!folderData?.parent}
-              className="p-2 rounded-md transition-colors bg-gray-200 text-gray-700 hover:bg-gray-300 disabled:opacity-50 disabled:pointer-events-none"
+              className="p-2 rounded-md transition-colors bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:pointer-events-none"
               title="Go up one folder"
             >
               <CornerLeftUpIcon className="w-4 h-4" />
             </button>
-            <div className="flex-1 px-3 py-2 bg-white border border-gray-300 rounded-md text-xs font-mono overflow-x-auto whitespace-nowrap text-gray-900">
+            <div className="flex-1 px-3 py-2 bg-card border border-input rounded-md text-xs font-mono overflow-x-auto whitespace-nowrap text-card-foreground">
               {folderData?.path || 'Loading...'}
             </div>
           </div>
         </div>
 
         {/* Directory List */}
-        <div className="flex-1 overflow-y-auto px-6 py-4 bg-white">
+        <div className="flex-1 overflow-y-auto px-6 py-4 bg-card">
           {isLoading ? (
-            <div className="text-center py-8 text-sm text-gray-500">Loading...</div>
+            <div className="text-center py-8 text-sm text-muted-foreground">Loading...</div>
           ) : folderData?.directories && folderData.directories.length > 0 ? (
             <div className="space-y-1">
               {folderData.directories.map((dir) => (
                 <div
                   key={dir}
-                  className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-100 rounded-md transition-colors text-sm text-gray-900 border border-transparent hover:border-gray-200"
+                  className="flex items-center gap-3 px-3 py-2.5 hover:bg-accent rounded-md transition-colors text-sm text-card-foreground border border-transparent hover:border-border"
                 >
                   <input
                     type="checkbox"
                     checked={checkedFolders.includes(dir)}
                     onChange={() => handleFolderCheck(dir)}
-                    className="w-4 h-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900 cursor-pointer"
+                    className="w-4 h-4 rounded border-input text-foreground focus:ring-ring cursor-pointer"
                     onClick={(e) => e.stopPropagation()}
                   />
                   <button
                     onClick={() => handleNavigate(dir)}
                     className="flex-1 flex items-center gap-3 text-left"
                   >
-                    <FolderIcon className="w-4 h-4 text-gray-500" />
+                    <FolderIcon className="w-4 h-4 text-muted-foreground" />
                     <span>{dir}</span>
                   </button>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="text-center py-8 text-sm text-gray-500">
+            <div className="text-center py-8 text-sm text-muted-foreground">
               No subdirectories found
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-200 bg-white flex items-center justify-between">
+        <div className="px-6 py-4 border-t border-border bg-muted flex items-center justify-between">
           <button
             onClick={onClose}
-            className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors h-9 px-3 hover:bg-gray-200 hover:text-foreground"
+            className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors h-9 px-3 text-card-foreground hover:bg-accent hover:text-accent-foreground"
           >
             Cancel
           </button>
           <button
             onClick={handleConfirmSelection}
             disabled={checkedFolders.length === 0 || isScanning}
-            className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors h-9 px-3 bg-primary text-primary-foreground hover:bg-gray-200 hover:text-foreground disabled:pointer-events-none"
+            className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors h-9 px-3 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:pointer-events-none"
           >
             {isScanning ? 'Starting Scan...' : `Confirm${checkedFolders.length > 0 ? ` (${checkedFolders.length})` : ''}`}
           </button>

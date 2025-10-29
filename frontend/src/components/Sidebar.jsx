@@ -27,7 +27,7 @@ const Sidebar = ({ onAddFolders, onOpenSettings, stats, health }) => {
       <div className="px-3">
         <button
           onClick={onAddFolders}
-          className="w-full text-left px-3 py-2 rounded-md transition-colors flex items-center gap-3 text-sm font-medium bg-primary hover:bg-gray-100 text-primary-foreground"
+          className="w-full text-left px-3 py-2 rounded-md transition-colors flex items-center gap-3 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90"
         >
           <PlusIcon className="w-4 h-4" />
           <span>Add Folders</span>
@@ -42,9 +42,9 @@ const Sidebar = ({ onAddFolders, onOpenSettings, stats, health }) => {
             <button
               key={item.id}
               onClick={() => navigate(item.path)}
-              className={`w-full text-left px-3 py-2 rounded-md transition-colors flex items-center gap-3 text-sm font-medium hover:bg-gray-100 ${
+              className={`w-full text-left px-3 py-2 rounded-md transition-colors flex items-center gap-3 text-sm font-medium hover:bg-accent ${
                 isActive(item.path)
-                  ? 'bg-muted text-foreground bg-gray-50'  // active view css
+                  ? 'bg-muted text-foreground'
                   : 'text-muted-foreground'
               }`}
             >
@@ -60,7 +60,7 @@ const Sidebar = ({ onAddFolders, onOpenSettings, stats, health }) => {
         {/* Settings Button */}
         <button
           onClick={onOpenSettings}
-          className="w-full text-left px-3 py-2 rounded-md transition-colors flex items-center gap-3 text-sm font-medium text-muted-foreground hover:bg-gray-100"
+          className="w-full text-left px-3 py-2 rounded-md transition-colors flex items-center gap-3 text-sm font-medium text-muted-foreground hover:bg-accent"
         >
           <SettingsIcon className="w-4 h-4" />
           <span>Settings</span>
