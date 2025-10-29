@@ -90,11 +90,11 @@ const FolderBrowserModal = ({ isOpen, onClose }) => {
 
   return (
     <div
-      className="fixed inset-0 bg-card backdrop-blur-md flex items-center justify-center z-50"
+      className="fixed inset-0 backdrop-blur-md flex items-center justify-center z-50"
       onClick={onClose}
     >
       <div
-        className="bg-card rounded-lg shadow-2xl w-full max-w-3xl h-[80vh] flex flex-col border-2 border-border"
+        className="bg-card/80 backdrop-blur-md rounded-lg shadow-2xl w-full max-w-3xl h-[80vh] flex flex-col border-2 border-border"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -121,7 +121,7 @@ const FolderBrowserModal = ({ isOpen, onClose }) => {
             <button
               onClick={handleGoUp}
               disabled={!folderData?.parent}
-              className="p-2 rounded-md transition-colors bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:pointer-events-none"
+              className="p-2 rounded-md transition-colors bg-accent text-primary hover:bg-primary/50 disabled:opacity-50 disabled:pointer-events-none"
               title="Go up one folder"
             >
               <CornerLeftUpIcon className="w-4 h-4" />
@@ -171,14 +171,14 @@ const FolderBrowserModal = ({ isOpen, onClose }) => {
         <div className="px-6 py-4 border-t border-border bg-muted flex items-center justify-between">
           <button
             onClick={onClose}
-            className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors h-9 px-3 text-card-foreground hover:bg-accent hover:text-accent-foreground"
+            className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors h-9 px-3 text-card-foreground bg-accent-foreground/20 hover:bg-accent-foreground/50 hover:text-accent-foreground"
           >
             Cancel
           </button>
           <button
             onClick={handleConfirmSelection}
             disabled={checkedFolders.length === 0 || isScanning}
-            className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors h-9 px-3 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:pointer-events-none"
+            className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors h-9 px-3 text-primary bg-accent-foreground/20 hover:bg-accent-foreground/50 disabled:opacity-50 disabled:pointer-events-none"
           >
             {isScanning ? 'Starting Scan...' : `Confirm${checkedFolders.length > 0 ? ` (${checkedFolders.length})` : ''}`}
           </button>

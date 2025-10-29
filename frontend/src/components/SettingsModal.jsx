@@ -1,7 +1,7 @@
+import { MoonIcon, SunIcon, XIcon } from './ui/Icons'
 import { useEffect, useState } from 'react'
 
 import Toggle from './ui/Toggle'
-import { XIcon } from './ui/Icons'
 import { clearAllData } from '../services/api'
 import toast from 'react-hot-toast'
 import { useQueryClient } from '@tanstack/react-query'
@@ -53,11 +53,11 @@ const SettingsModal = ({ isOpen, onClose }) => {
 
   return (
     <div
-      className="fixed inset-0 bg-card backdrop-blur-md flex items-center justify-center z-50"
+      className="fixed inset-0 backdrop-blur-md flex items-center justify-center z-50"
       onClick={onClose}
     >
       <div
-        className="rounded-lg shadow-2xl w-full max-w-2xl border-2 border-border"
+        className="bg-card/80 backdrop-blur-md rounded-lg shadow-2xl w-full max-w-2xl border-2 border-border"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -143,13 +143,13 @@ const SettingsModal = ({ isOpen, onClose }) => {
           <Toggle
             pressed={theme === 'dark'}
             onPressedChange={() => toggleTheme()}
-            className="text-xs h-8"
+            className="text-xs hover:bg-accent-foreground/20"
           >
-            {theme === 'light' ? '🌙 Dark' : '☀️ Light'}
+            {theme === 'light' ? <MoonIcon className="w-4 h-4" /> : <SunIcon className="w-4 h-4" />}
           </Toggle>
           <button
             onClick={onClose}
-            className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors h-9 px-3 bg-primary text-primary-foreground hover:bg-primary/90"
+            className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors h-9 px-3 text-primary bg-accent-foreground/20 hover:bg-accent-foreground/50"
           >
             Close
           </button>

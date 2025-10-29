@@ -5,10 +5,12 @@ import {
   IconCornerLeftUp,
   IconFolder,
   IconLayoutDashboard,
+  IconMoon,
   IconMusic,
   IconPlus,
   IconSearch,
   IconSettings,
+  IconSun,
   IconTag,
   IconX
 } from '@tabler/icons-react'
@@ -57,3 +59,10 @@ export const XIcon = ({ className = "w-4 h-4" }) => (
 export const CornerLeftUpIcon = ({ className = "w-4 h-4" }) => (
   <IconCornerLeftUp className={className} stroke={1.5} />
 )
+
+export const MoonIcon = ({ className = "w-4 h-4" }) => (
+  <IconMoon className={className} stroke={1.5} />
+) 
+export const SunIcon = ({ className = "w-4 h-4" }) => (
+  <IconSun className={className} stroke={1.5} />
+) 

@@ -27,7 +27,7 @@ const Sidebar = ({ onAddFolders, onOpenSettings, stats, health }) => {
       <div className="px-3">
         <button
           onClick={onAddFolders}
-          className="w-full text-left px-3 py-2 rounded-md transition-colors flex items-center gap-3 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90"
+          className="w-full text-left px-3 py-2 rounded-md transition-colors flex items-center gap-3 text-sm font-medium text-muted-foreground hover:bg-accent"
         >
           <PlusIcon className="w-4 h-4" />
           <span>Add Folders</span>
