@@ -68,6 +68,22 @@ async def health_check():
     }
 
 
+@app.post("/api/database/clear")
+async def clear_all_data():
+    """Clear all data from the database"""
+    success = db.clear_all_data()
+    if success:
+        return {
+            "status": "success",
+            "message": "All data has been cleared from the database"
+        }
+    else:
+        return {
+            "status": "error",
+            "message": "Failed to clear data from database"
+        }
+
+
 # Serve frontend static files in production
 if FRONTEND_BUILD_DIR.exists():
     app.mount("/assets", StaticFiles(directory=FRONTEND_BUILD_DIR / "assets"), name="assets")

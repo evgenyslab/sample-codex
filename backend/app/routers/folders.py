@@ -1,7 +1,7 @@
 """Folder management API endpoints"""
 from fastapi import APIRouter, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import Any, List, Optional
 import os
 from pathlib import Path
 import json
@@ -32,7 +32,7 @@ class ScanRequest(BaseModel):
 
 
 @router.get("/browse")
-async def browse_filesystem(path: str = None):
+async def browse_filesystem(path: str = None) -> dict[str, Any]:
     """Browse filesystem directories"""
     try:
         # Default to user's home directory
@@ -168,6 +168,31 @@ async def websocket_scan_endpoint(websocket: WebSocket):
             None,
             lambda: scan_folders_with_progress(folder_paths, progress_callback)
         )
+
+        # Get updated stats from database
+        with db.get_connection() as conn:
+            # Get sample count
+            sample_count = conn.execute("SELECT COUNT(*) as count FROM samples").fetchone()["count"]
+
+            # Get tag count
+            tag_count = conn.execute("SELECT COUNT(*) as count FROM tags").fetchone()["count"]
+
+            # Get collection count
+            collection_count = conn.execute("SELECT COUNT(*) as count FROM collections").fetchone()["count"]
+
+            # Get folder count
+            folder_count = conn.execute("SELECT COUNT(*) as count FROM folders").fetchone()["count"]
+
+        # Send stats update message
+        await websocket.send_json({
+            "type": "stats_update",
+            "stats": {
+                "samples": sample_count,
+                "tags": tag_count,
+                "collections": collection_count,
+                "folders": folder_count
+            }
+        })
 
         # Send completion message
         await websocket.send_json({

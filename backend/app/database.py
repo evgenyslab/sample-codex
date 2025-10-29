@@ -186,6 +186,26 @@ class Database:
             logger.error(f"Database health check failed: {e}")
             return False
 
+    def clear_all_data(self) -> bool:
+        """Clear all data from all tables"""
+        try:
+            with self.get_connection() as conn:
+                # Delete in order to respect foreign key constraints
+                conn.execute("DELETE FROM collection_tags")
+                conn.execute("DELETE FROM collection_items")
+                conn.execute("DELETE FROM collections")
+                conn.execute("DELETE FROM sample_tags")
+                conn.execute("DELETE FROM samples_fts")
+                conn.execute("DELETE FROM samples")
+                conn.execute("DELETE FROM tags")
+                conn.execute("DELETE FROM folders")
+                conn.commit()
+                logger.info("All data cleared from database")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to clear all data: {e}")
+            return False
+
 
 # Global database instance
 db = Database()

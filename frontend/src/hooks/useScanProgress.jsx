@@ -1,9 +1,11 @@
 import { useEffect, useRef, useCallback } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 
 export function useScanProgress() {
   const wsRef = useRef(null)
   const toastIdRef = useRef(null)
+  const queryClient = useQueryClient()
 
   const startScan = useCallback((folderPaths) => {
     // Close existing connection if any
@@ -61,6 +63,32 @@ export function useScanProgress() {
               position: 'bottom-right',
             }
           )
+        } else if (data.type === 'stats_update') {
+          // Update stats in React Query cache
+          if (data.stats) {
+            // Update samples query
+            queryClient.setQueryData(['samples'], (oldData) => {
+              if (oldData?.pagination) {
+                return {
+                  ...oldData,
+                  pagination: {
+                    ...oldData.pagination,
+                    total: data.stats.samples
+                  }
+                }
+              }
+              return oldData
+            })
+
+            // Update tags query
+            queryClient.invalidateQueries(['tags'])
+
+            // Update collections query
+            queryClient.invalidateQueries(['collections'])
+
+            // Update folders query
+            queryClient.invalidateQueries(['folders'])
+          }
         } else if (data.type === 'complete') {
           // Show success toast
           toast.success(data.message, {
@@ -108,7 +136,7 @@ export function useScanProgress() {
         ws.close()
       }
     }
-  }, [])
+  }, [queryClient])
 
   // Cleanup on unmount
   useEffect(() => {

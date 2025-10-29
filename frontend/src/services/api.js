@@ -49,4 +49,7 @@ export const searchSamples = (params) => api.get('/search', { params });
 // Health check
 export const healthCheck = () => api.get('/health');
 
+// Database operations
+export const clearAllData = () => api.post('/database/clear');
+
 export default api;

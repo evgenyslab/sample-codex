@@ -1,17 +1,19 @@
 import { CollectionIcon, DashboardIcon, FolderIcon, PlusIcon, SearchIcon, SettingsIcon, TagIcon } from './ui/Icons'
-
-import { useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 
 const Sidebar = ({ onAddFolders, onOpenSettings, stats, health }) => {
-  const [activeView, setActiveView] = useState('dashboard')
+  const navigate = useNavigate()
+  const location = useLocation()
 
   const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', Icon: DashboardIcon },
-    { id: 'browser', label: 'Browser', Icon: FolderIcon },
-    { id: 'tags', label: 'Tags', Icon: TagIcon },
-    { id: 'collections', label: 'Collections', Icon: CollectionIcon },
-    { id: 'search', label: 'Search', Icon: SearchIcon },
+    { id: 'dashboard', label: 'Dashboard', Icon: DashboardIcon, path: '/dashboard' },
+    { id: 'browser', label: 'Browser', Icon: FolderIcon, path: '/browser' },
+    { id: 'tags', label: 'Tags', Icon: TagIcon, path: '/tags' },
+    { id: 'collections', label: 'Collections', Icon: CollectionIcon, path: '/collections' },
+    { id: 'search', label: 'Search', Icon: SearchIcon, path: '/search' },
   ]
+
+  const isActive = (path) => location.pathname === path
 
   return (
     <div className="w-64 border-r bg-background h-screen flex flex-col">
@@ -22,7 +24,7 @@ const Sidebar = ({ onAddFolders, onOpenSettings, stats, health }) => {
       </div>
 
       {/* Add Folders Button */}
-      <div className="px-3 pb-4">
+      <div className="px-3">
         <button
           onClick={onAddFolders}
           className="w-full text-left px-3 py-2 rounded-md transition-colors flex items-center gap-3 text-sm font-medium bg-primary hover:bg-gray-100 text-primary-foreground"
@@ -39,9 +41,9 @@ const Sidebar = ({ onAddFolders, onOpenSettings, stats, health }) => {
           return (
             <button
               key={item.id}
-              onClick={() => setActiveView(item.id)}
+              onClick={() => navigate(item.path)}
               className={`w-full text-left px-3 py-2 rounded-md transition-colors flex items-center gap-3 text-sm font-medium hover:bg-gray-100 ${
-                activeView === item.id
+                isActive(item.path)
                   ? 'bg-muted text-foreground bg-gray-50'  // active view css
                   : 'text-muted-foreground'
               }`}

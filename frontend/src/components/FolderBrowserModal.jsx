@@ -7,7 +7,7 @@ import { useScanProgress } from '../hooks/useScanProgress.jsx'
 
 const FolderBrowserModal = ({ isOpen, onClose }) => {
   const [currentPath, setCurrentPath] = useState('')
-  const [selectedPaths, setSelectedPaths] = useState([])
+  const [checkedFolders, setCheckedFolders] = useState([])
   const [isScanning, setIsScanning] = useState(false)
   const queryClient = useQueryClient()
   const { startScan } = useScanProgress()
@@ -45,37 +45,46 @@ const FolderBrowserModal = ({ isOpen, onClose }) => {
   const handleNavigate = (dirName) => {
     const newPath = folderData.path + '/' + dirName
     setCurrentPath(newPath)
+    setCheckedFolders([]) // Clear checked folders when navigating
   }
 
   const handleGoUp = () => {
     if (folderData?.parent) {
       setCurrentPath(folderData.parent)
+      setCheckedFolders([]) // Clear checked folders when navigating
     }
   }
 
-  const handleSelectCurrent = () => {
-    if (folderData?.path && !selectedPaths.includes(folderData.path)) {
-      setSelectedPaths([...selectedPaths, folderData.path])
-    }
+  const handleFolderCheck = (dirName) => {
+    setCheckedFolders(prev => {
+      if (prev.includes(dirName)) {
+        return prev.filter(f => f !== dirName)
+      } else {
+        return [...prev, dirName]
+      }
+    })
   }
 
-  const handleScan = () => {
-    if (selectedPaths.length > 0 && !isScanning) {
+  const handleConfirmSelection = () => {
+    if (checkedFolders.length > 0 && !isScanning) {
       setIsScanning(true)
 
+      // Convert checked folders to full paths
+      const folderPaths = checkedFolders.map(dirName => folderData.path + '/' + dirName)
+
       // Start WebSocket scan
-      startScan(selectedPaths)
+      startScan(folderPaths)
 
       // Wait a bit then close modal and refresh data
       setTimeout(() => {
         setIsScanning(false)
-        setSelectedPaths([])
+        setCheckedFolders([])
         onClose()
 
         // Refresh queries after scan starts
         queryClient.invalidateQueries(['folders'])
         queryClient.invalidateQueries(['samples'])
-      }, 1000)
+      }, 200)
     }
   }
 
@@ -108,7 +117,7 @@ const FolderBrowserModal = ({ isOpen, onClose }) => {
 
         {/* Current Path & Controls */}
         <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
-          <div className="flex items-center gap-2 mb-3">
+          <div className="flex items-center gap-2">
             <button
               onClick={handleGoUp}
               disabled={!folderData?.parent}
@@ -120,20 +129,7 @@ const FolderBrowserModal = ({ isOpen, onClose }) => {
             <div className="flex-1 px-3 py-2 bg-white border border-gray-300 rounded-md text-xs font-mono overflow-x-auto whitespace-nowrap text-gray-900">
               {folderData?.path || 'Loading...'}
             </div>
-            <button
-              onClick={handleSelectCurrent}
-              disabled={!folderData?.path || selectedPaths.includes(folderData?.path)}
-              className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors h-9 px-3 bg-primary text-primary-foreground bg-gray-200 hover:bg-gray-300 disabled:opacity-50 disabled:pointer-events-none"
-            >
-              Select
-            </button>
           </div>
-
-          {selectedPaths.length > 0 && (
-            <div className="text-xs text-gray-600">
-              {selectedPaths.length} folder{selectedPaths.length !== 1 ? 's' : ''} selected
-            </div>
-          )}
         </div>
 
         {/* Directory List */}
@@ -143,14 +139,25 @@ const FolderBrowserModal = ({ isOpen, onClose }) => {
           ) : folderData?.directories && folderData.directories.length > 0 ? (
             <div className="space-y-1">
               {folderData.directories.map((dir) => (
-                <button
+                <div
                   key={dir}
-                  onClick={() => handleNavigate(dir)}
-                  className="w-full text-left px-3 py-2.5 hover:bg-gray-100 rounded-md flex items-center gap-3 transition-colors text-sm text-gray-900 border border-transparent hover:border-gray-200"
+                  className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-100 rounded-md transition-colors text-sm text-gray-900 border border-transparent hover:border-gray-200"
                 >
-                  <FolderIcon className="w-4 h-4 text-gray-500" />
-                  <span>{dir}</span>
-                </button>
+                  <input
+                    type="checkbox"
+                    checked={checkedFolders.includes(dir)}
+                    onChange={() => handleFolderCheck(dir)}
+                    className="w-4 h-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900 cursor-pointer"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                  <button
+                    onClick={() => handleNavigate(dir)}
+                    className="flex-1 flex items-center gap-3 text-left"
+                  >
+                    <FolderIcon className="w-4 h-4 text-gray-500" />
+                    <span>{dir}</span>
+                  </button>
+                </div>
               ))}
             </div>
           ) : (
@@ -159,26 +166,6 @@ const FolderBrowserModal = ({ isOpen, onClose }) => {
             </div>
           )}
         </div>
-
-        {/* Selected Paths */}
-        {selectedPaths.length > 0 && (
-          <div className="px-6 py-3 border-t border-gray-200 bg-gray-50">
-            <p className="text-xs font-medium mb-2 text-gray-700">Selected folders:</p>
-            <div className="space-y-1.5 max-h-24 overflow-y-auto">
-              {selectedPaths.map((path) => (
-                <div key={path} className="flex items-center justify-between bg-white rounded px-3 py-2 border border-gray-200">
-                  <span className="text-gray-700 font-mono text-xs truncate">{path}</span>
-                  <button
-                    onClick={() => setSelectedPaths(selectedPaths.filter(p => p !== path))}
-                    className="text-gray-400 hover:text-gray-600 ml-2 transition-colors"
-                  >
-                    <XIcon className="w-4 h-4" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* Footer */}
         <div className="px-6 py-4 border-t border-gray-200 bg-white flex items-center justify-between">
@@ -189,11 +176,11 @@ const FolderBrowserModal = ({ isOpen, onClose }) => {
             Cancel
           </button>
           <button
-            onClick={handleScan}
-            disabled={selectedPaths.length === 0 || isScanning}
-            className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors h-9 px-3 bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 disabled:pointer-events-none"
+            onClick={handleConfirmSelection}
+            disabled={checkedFolders.length === 0 || isScanning}
+            className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors h-9 px-3 bg-primary text-primary-foreground hover:bg-gray-200 hover:text-foreground disabled:pointer-events-none"
           >
-            {isScanning ? 'Starting Scan...' : `Scan ${selectedPaths.length} Folder${selectedPaths.length !== 1 ? 's' : ''}`}
+            {isScanning ? 'Starting Scan...' : `Confirm${checkedFolders.length > 0 ? ` (${checkedFolders.length})` : ''}`}
           </button>
         </div>
       </div>

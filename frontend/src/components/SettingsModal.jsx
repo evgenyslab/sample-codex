@@ -1,7 +1,36 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import toast from 'react-hot-toast'
 import { XIcon } from './ui/Icons'
+import { clearAllData } from '../services/api'
 
 const SettingsModal = ({ isOpen, onClose }) => {
+  const [isClearing, setIsClearing] = useState(false)
+  const queryClient = useQueryClient()
+
+  const handleClearAllData = async () => {
+    if (!confirm('Are you sure you want to clear all data? This cannot be undone.')) {
+      return
+    }
+
+    setIsClearing(true)
+    try {
+      const response = await clearAllData()
+      if (response.data.status === 'success') {
+        toast.success('All data has been cleared successfully')
+        // Invalidate all queries to refresh the UI
+        queryClient.invalidateQueries()
+      } else {
+        toast.error('Failed to clear data')
+      }
+    } catch (error) {
+      console.error('Error clearing data:', error)
+      toast.error('An error occurred while clearing data')
+    } finally {
+      setIsClearing(false)
+    }
+  }
+
   // Add escape key listener
   useEffect(() => {
     const handleEscape = (e) => {
@@ -95,14 +124,11 @@ const SettingsModal = ({ isOpen, onClose }) => {
                 Export Database
               </button>
               <button
-                onClick={() => {
-                  if (confirm('Are you sure you want to clear all data? This cannot be undone.')) {
-                    alert('Clear database feature coming soon')
-                  }
-                }}
-                className="w-full justify-start inline-flex items-center rounded-md text-sm font-medium transition-colors h-9 px-3 border border-input text-red-600 hover:bg-gray-200 hover:text-red-700"
+                onClick={handleClearAllData}
+                disabled={isClearing}
+                className="w-full justify-start inline-flex items-center rounded-md text-sm font-medium transition-colors h-9 px-3 border border-input text-red-600 hover:bg-gray-200 hover:text-red-700 disabled:opacity-50 disabled:pointer-events-none"
               >
-                Clear All Data
+                {isClearing ? 'Clearing...' : 'Clear All Data'}
               </button>
             </div>
           </div>
