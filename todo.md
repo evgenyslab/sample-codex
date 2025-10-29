@@ -23,3 +23,4 @@
 - BE should use ruff
 - BE needs unit tests for API
 - FE needs unit tests
+- FE Connected status should be continously checking BE... maybe via websocket
