@@ -73,6 +73,7 @@ export default function FolderTreePane({
 }) {
   const [searchQuery, setSearchQuery] = useState('')
   const [expandedFolders, setExpandedFolders] = useState({})
+  const [searchExpandedFolders, setSearchExpandedFolders] = useState({})
 
   // Build folder tree from sample paths
   const { tree } = useMemo(() => {
@@ -96,29 +97,45 @@ export default function FolderTreePane({
     return result
   }, [samplePaths])
 
-  // Filter folders based on search
+  // Filter folders based on search and collect paths to expand
   const filteredTree = useMemo(() => {
-    if (!searchQuery) return tree
+    if (!searchQuery) {
+      setSearchExpandedFolders({})
+      return tree
+    }
 
-    const filterTree = (node) => {
+    const toExpand = {}
+    const filterTree = (node, parentPath = '') => {
       const filtered = {}
       Object.entries(node).forEach(([key, value]) => {
         if (value.isFile) return
 
         const matchesSearch = key.toLowerCase().includes(searchQuery.toLowerCase())
-        const filteredChildren = filterTree(value.children)
+        const filteredChildren = filterTree(value.children, value.fullPath)
 
         if (matchesSearch || Object.keys(filteredChildren).length > 0) {
           filtered[key] = {
             ...value,
             children: filteredChildren
           }
+
+          // Mark parent path for expansion
+          if (parentPath) {
+            toExpand[parentPath] = true
+          }
+
+          // If this folder has matching children, expand it too
+          if (Object.keys(filteredChildren).length > 0) {
+            toExpand[value.fullPath] = true
+          }
         }
       })
       return filtered
     }
 
-    return filterTree(tree)
+    const result = filterTree(tree)
+    setSearchExpandedFolders(toExpand)
+    return result
   }, [tree, searchQuery])
 
   const toggleExpanded = (path) => {
@@ -152,7 +169,10 @@ export default function FolderTreePane({
     return Object.entries(node).map(([, value]) => {
       if (value.isFile) return null
 
-      const isExpanded = expandedFolders[value.fullPath]
+      // Use search-expanded state if searching, otherwise use manual expanded state
+      const isExpanded = searchQuery
+        ? searchExpandedFolders[value.fullPath] || expandedFolders[value.fullPath]
+        : expandedFolders[value.fullPath]
       const hasChildren = Object.keys(value.children).length > 0
       const isIncluded = includedFolders.includes(value.fullPath)
       const isExcluded = excludedFolders.includes(value.fullPath)
@@ -176,7 +196,7 @@ export default function FolderTreePane({
               flex items-center gap-1 px-2 py-1.5 rounded-md text-sm transition-colors
               ${isIncluded ? 'bg-primary text-primary-foreground' : ''}
               ${isExcluded ? 'bg-red-500 text-white' : ''}
-              ${!isIncluded && !isExcluded && hasSelectedChild && !hasExcludedChild ? 'bg-primary/20 text-foreground' : ''}
+              ${!isIncluded && !isExcluded && hasSelectedChild && !hasExcludedChild ? 'bg-primary/5 text-foreground' : ''}
               ${!isIncluded && !isExcluded && hasExcludedChild ? 'bg-red-500/20 text-foreground' : ''}
               ${!isIncluded && !isExcluded && !hasSelectedChild && !hasExcludedChild ? 'hover:bg-accent hover:text-accent-foreground' : ''}
             `}
@@ -257,6 +277,11 @@ export default function FolderTreePane({
               className="w-full pl-9 pr-3 py-2 bg-muted border border-input rounded-md text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
             />
           </div>
+          {searchQuery && (
+            <div className="mt-1 text-xs text-muted-foreground">
+              Showing matches (auto-expanded)
+            </div>
+          )}
         </div>
 
         {/* Folder Tree */}
