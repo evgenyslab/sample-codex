@@ -75,7 +75,7 @@ export default function FolderTreePane({
   const [expandedFolders, setExpandedFolders] = useState({})
 
   // Build folder tree from sample paths
-  const { root, tree } = useMemo(() => {
+  const { tree } = useMemo(() => {
     const paths = samplePaths.map(path => {
       // Get directory path (remove filename)
       const parts = path.split('/')
@@ -86,7 +86,7 @@ export default function FolderTreePane({
     const result = buildFolderTree(paths)
 
     // Debug logging
-    if (process.env.NODE_ENV === 'development') {
+    if (import.meta.env.DEV) {
       console.log('FolderTreePane - Sample paths:', samplePaths.length)
       console.log('FolderTreePane - Unique directories:', paths.length)
       console.log('FolderTreePane - Common root:', result.root)
@@ -149,7 +149,7 @@ export default function FolderTreePane({
   }
 
   const renderFolderTree = (node, depth = 0) => {
-    return Object.entries(node).map(([key, value]) => {
+    return Object.entries(node).map(([, value]) => {
       if (value.isFile) return null
 
       const isExpanded = expandedFolders[value.fullPath]
@@ -294,13 +294,13 @@ export default function FolderTreePane({
 
         {/* Toggle Button */}
         {onToggleVisibility && (
-          <div className="p-2 border-t border-border">
+          <div className="px-2 py-1 border-t border-border">
             <button
               onClick={() => onToggleVisibility(false)}
-              className="w-full flex items-center justify-center py-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              className="w-full flex items-center justify-center py-1 text-xs text-muted-foreground hover:text-foreground transition-colors rounded hover:bg-accent"
               title="Hide folders pane"
             >
-              <ChevronUpIcon className="w-4 h-4 rotate-[-90deg]" />
+              <ChevronUpIcon className="w-3.5 h-3.5 rotate-[-90deg]" />
             </button>
           </div>
         )}

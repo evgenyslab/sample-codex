@@ -1,6 +1,6 @@
 import { SearchIcon } from '../components/ui/Icons'
 import { getScannedFolders, healthCheck, listCollections, listSamples, listTags } from '../services/api'
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import FilterPane from '../components/FilterPane'
 import FolderBrowserModal from '../components/FolderBrowserModal'
@@ -13,8 +13,17 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 export default function Browser() {
   const [isFolderBrowserOpen, setIsFolderBrowserOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
-  const [isLeftPaneVisible, setIsLeftPaneVisible] = useState(true)
-  const [isFolderPaneVisible, setIsFolderPaneVisible] = useState(true)
+
+  // Persist pane visibility state
+  const [isLeftPaneVisible, setIsLeftPaneVisible] = useState(() => {
+    const saved = localStorage.getItem('browser-tags-pane-visible')
+    return saved !== null ? saved === 'true' : true
+  })
+  const [isFolderPaneVisible, setIsFolderPaneVisible] = useState(() => {
+    const saved = localStorage.getItem('browser-folders-pane-visible')
+    return saved !== null ? saved === 'true' : true
+  })
+
   const [sampleSearch, setSampleSearch] = useState('')
   const [includedTags, setIncludedTags] = useState([])
   const [excludedTags, setExcludedTags] = useState([])
@@ -22,6 +31,15 @@ export default function Browser() {
   const [excludedFolders, setExcludedFolders] = useState([])
 
   const tableRef = useRef(null)
+
+  // Persist pane visibility to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem('browser-tags-pane-visible', isLeftPaneVisible.toString())
+  }, [isLeftPaneVisible])
+
+  useEffect(() => {
+    localStorage.setItem('browser-folders-pane-visible', isFolderPaneVisible.toString())
+  }, [isFolderPaneVisible])
 
   const { data: health } = useQuery({
     queryKey: ['health'],

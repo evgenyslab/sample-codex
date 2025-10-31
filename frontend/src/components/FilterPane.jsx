@@ -161,13 +161,13 @@ export default function FilterPane({
 
         {/* Toggle Button */}
         {onToggleVisibility && (
-          <div className="p-2 border-t border-border">
+          <div className="px-2 py-1 border-t border-border">
             <button
               onClick={() => onToggleVisibility(false)}
-              className="w-full flex items-center justify-center py-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              className="w-full flex items-center justify-center py-1 text-xs text-muted-foreground hover:text-foreground transition-colors rounded hover:bg-accent"
               title={`Hide ${type} pane`}
             >
-              <ChevronUpIcon className="w-4 h-4 rotate-[-90deg]" />
+              <ChevronUpIcon className="w-3.5 h-3.5 rotate-[-90deg]" />
             </button>
           </div>
         )}
