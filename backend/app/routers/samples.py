@@ -97,9 +97,9 @@ async def get_sample(sample_id: int):
 
 @router.get("/{sample_id}/audio")
 async def stream_audio(sample_id: int):
-    """Stream audio file"""
+    """Stream audio file for playback"""
     with db.get_connection() as conn:
-        sample = conn.execute("SELECT filepath FROM samples WHERE id = ?", (sample_id,)).fetchone()
+        sample = conn.execute("SELECT filepath, format FROM samples WHERE id = ?", (sample_id,)).fetchone()
 
         if not sample:
             raise HTTPException(status_code=404, detail="Sample not found")
@@ -108,7 +108,23 @@ async def stream_audio(sample_id: int):
         if not filepath.exists():
             raise HTTPException(status_code=404, detail="Audio file not found on disk")
 
-        return FileResponse(filepath, media_type="audio/*", filename=filepath.name)
+        # Determine media type from format
+        format_to_mime = {
+            "wav": "audio/wav",
+            "mp3": "audio/mpeg",
+            "flac": "audio/flac",
+            "aiff": "audio/aiff",
+            "ogg": "audio/ogg",
+            "m4a": "audio/mp4",
+        }
+        media_type = format_to_mime.get(sample["format"], "audio/*")
+
+        return FileResponse(
+            filepath,
+            media_type=media_type,
+            filename=filepath.name,
+            headers={"Accept-Ranges": "bytes"},
+        )
 
 
 @router.put("/{sample_id}")

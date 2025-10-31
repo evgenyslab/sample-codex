@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import FilterPane from '../components/FilterPane'
 import FolderBrowserModal from '../components/FolderBrowserModal'
 import FolderTreePane from '../components/FolderTreePane'
+import SamplePlayer from '../components/SamplePlayer/SamplePlayer'
 import SettingsModal from '../components/SettingsModal'
 import Sidebar from '../components/Sidebar'
 import { useQuery } from '@tanstack/react-query'
@@ -13,6 +14,8 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 export default function Browser() {
   const [isFolderBrowserOpen, setIsFolderBrowserOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [selectedSample, setSelectedSample] = useState(null)
+  const [isPlayerOpen, setIsPlayerOpen] = useState(false)
 
   // Persist pane visibility state
   const [isLeftPaneVisible, setIsLeftPaneVisible] = useState(() => {
@@ -237,7 +240,7 @@ export default function Browser() {
         />
 
         {/* Right Pane - Sample Browser */}
-        <div className="flex-1 flex flex-col bg-card/80 backdrop-blur-md rounded-lg border border-border overflow-hidden">
+        <div className="flex-1 flex flex-col bg-card/80 backdrop-blur-md rounded-lg border border-border overflow-hidden relative">
           {/* Sample Search */}
           <div className="p-2 border-b border-border">
             <div className="relative">
@@ -253,7 +256,11 @@ export default function Browser() {
           </div>
 
           {/* Sample Table */}
-          <div ref={tableRef} className="flex-1 overflow-auto">
+          <div
+            ref={tableRef}
+            className="flex-1 overflow-auto"
+            style={{ paddingBottom: isPlayerOpen ? '200px' : '0' }}
+          >
             <div className="min-w-full">
               {/* Table Header */}
               <div className="sticky top-0 bg-muted border-b border-border z-10">
@@ -285,7 +292,11 @@ export default function Browser() {
                         height: `${virtualRow.size}px`,
                         transform: `translateY(${virtualRow.start}px)`,
                       }}
-                      className="flex items-center text-sm border-b border-border hover:bg-accent transition-colors"
+                      className="flex items-center text-sm border-b border-border hover:bg-accent transition-colors cursor-pointer"
+                      onClick={() => {
+                        setSelectedSample(sample)
+                        setIsPlayerOpen(true)
+                      }}
                     >
                       <div className="flex-1 px-4 py-2 truncate text-foreground">
                         {sample.filename}
@@ -309,6 +320,13 @@ export default function Browser() {
               )}
             </div>
           </div>
+
+          {/* Sample Player - positioned at bottom of browser pane */}
+          <SamplePlayer
+            sample={selectedSample}
+            isOpen={isPlayerOpen}
+            onClose={() => setIsPlayerOpen(false)}
+          />
         </div>
       </div>
 
