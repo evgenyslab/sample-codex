@@ -162,6 +162,7 @@ def process_files(audio_files: List[Path], progress_callback: Optional[Callable]
 
                 stats["added"] += 1
 
+                # TODO: BEFORE inserting, check for duplicate SHA's OR provide FE functionality!
                 # Bulk insert every 100 files
                 if len(files_to_insert) >= 100:
                     _bulk_insert_samples(conn, files_to_insert)

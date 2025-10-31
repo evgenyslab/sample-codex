@@ -1,4 +1,13 @@
-"""Database initialization and connection management"""
+"""
+Database initialization and connection management
+
+TODO:
+- Default tag ENUMs in db migration
+- Add support for db migrations for different db versions
+- add file SHA's to DB to avoid duplicates & allow re-discovery of files
+
+
+"""
 
 import logging
 import sqlite3

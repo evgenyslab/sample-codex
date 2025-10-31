@@ -1,8 +1,10 @@
-import { ChevronUpIcon, SearchIcon, XIcon } from '../components/ui/Icons'
+import { SearchIcon } from '../components/ui/Icons'
 import { getScannedFolders, healthCheck, listCollections, listSamples, listTags } from '../services/api'
 import { useMemo, useRef, useState } from 'react'
 
+import FilterPane from '../components/FilterPane'
 import FolderBrowserModal from '../components/FolderBrowserModal'
+import FolderTreePane from '../components/FolderTreePane'
 import SettingsModal from '../components/SettingsModal'
 import Sidebar from '../components/Sidebar'
 import { useQuery } from '@tanstack/react-query'
@@ -12,10 +14,12 @@ export default function Browser() {
   const [isFolderBrowserOpen, setIsFolderBrowserOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isLeftPaneVisible, setIsLeftPaneVisible] = useState(true)
-  const [tagSearch, setTagSearch] = useState('')
+  const [isFolderPaneVisible, setIsFolderPaneVisible] = useState(true)
   const [sampleSearch, setSampleSearch] = useState('')
   const [includedTags, setIncludedTags] = useState([])
   const [excludedTags, setExcludedTags] = useState([])
+  const [includedFolders, setIncludedFolders] = useState([])
+  const [excludedFolders, setExcludedFolders] = useState([])
 
   const tableRef = useRef(null)
 
@@ -73,26 +77,42 @@ export default function Browser() {
     collections: collectionsData?.collections?.length || 0,
   }
 
-  // Filter tags based on search
-  const filteredTags = useMemo(() => {
-    if (!tagsData?.tags) return []
-    if (!tagSearch) return tagsData.tags
-    return tagsData.tags.filter(tag =>
-      tag.name.toLowerCase().includes(tagSearch.toLowerCase())
-    )
-  }, [tagsData, tagSearch])
-
-  // Get samples list and filter by search
+  // Get samples list and filter by search and folders
   const samples = useMemo(() => {
-    const allSamples = samplesData?.samples || []
-    if (!sampleSearch) return allSamples
+    let filtered = samplesData?.samples || []
 
-    const searchLower = sampleSearch.toLowerCase()
-    return allSamples.filter(sample =>
-      sample.filename?.toLowerCase().includes(searchLower) ||
-      sample.path?.toLowerCase().includes(searchLower)
-    )
-  }, [samplesData, sampleSearch])
+    // Apply folder filters
+    if (includedFolders.length > 0 || excludedFolders.length > 0) {
+      filtered = filtered.filter(sample => {
+        const samplePath = sample.filepath || ''
+
+        // Check exclusions first
+        if (excludedFolders.length > 0) {
+          const isExcluded = excludedFolders.some(folder => samplePath.startsWith(folder))
+          if (isExcluded) return false
+        }
+
+        // Check inclusions
+        if (includedFolders.length > 0) {
+          const isIncluded = includedFolders.some(folder => samplePath.startsWith(folder))
+          return isIncluded
+        }
+
+        return true
+      })
+    }
+
+    // Apply search filter
+    if (sampleSearch) {
+      const searchLower = sampleSearch.toLowerCase()
+      filtered = filtered.filter(sample =>
+        sample.filename?.toLowerCase().includes(searchLower) ||
+        sample.filepath?.toLowerCase().includes(searchLower)
+      )
+    }
+
+    return filtered
+  }, [samplesData, sampleSearch, includedFolders, excludedFolders])
 
   // Virtualizer for sample table
   const rowVirtualizer = useVirtualizer({
@@ -122,6 +142,31 @@ export default function Browser() {
     }
   }
 
+  const handleFolderClick = (folderPath, isShiftClick = false) => {
+    if (isShiftClick) {
+      // Shift-click: toggle exclude
+      if (excludedFolders.includes(folderPath)) {
+        setExcludedFolders(excludedFolders.filter(p => p !== folderPath))
+      } else {
+        setExcludedFolders([...excludedFolders, folderPath])
+        setIncludedFolders(includedFolders.filter(p => p !== folderPath))
+      }
+    } else {
+      // Click: toggle include
+      if (includedFolders.includes(folderPath)) {
+        setIncludedFolders(includedFolders.filter(p => p !== folderPath))
+      } else {
+        setIncludedFolders([...includedFolders, folderPath])
+        setExcludedFolders(excludedFolders.filter(p => p !== folderPath))
+      }
+    }
+  }
+
+  // Extract sample paths for folder tree (from tag-filtered samples)
+  const samplePathsForFolderTree = useMemo(() => {
+    return (samplesData?.samples || []).map(s => s.filepath).filter(Boolean)
+  }, [samplesData])
+
   const formatDuration = (seconds) => {
     if (!seconds) return '-'
     const mins = Math.floor(seconds / 60)
@@ -139,94 +184,31 @@ export default function Browser() {
       />
 
       <div className="flex-1 flex gap-2 p-4 overflow-hidden">
-        {/* Left Pane - Tags */}
-        {isLeftPaneVisible && (
-          <div className="w-64 flex flex-col bg-card/80 backdrop-blur-md rounded-lg border border-border overflow-hidden">
-            {/* Tag Search */}
-            <div className="p-2 border-b border-border">
-              <div className="relative">
-                <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <input
-                  type="text"
-                  placeholder="Search tags..."
-                  value={tagSearch}
-                  onChange={(e) => setTagSearch(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 bg-muted border border-input rounded-md text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                />
-              </div>
-            </div>
+        {/* Left Pane - Tags Filter */}
+        <FilterPane
+          items={tagsData?.tags || []}
+          type="tags"
+          includedItems={includedTags}
+          excludedItems={excludedTags}
+          onItemClick={handleTagClick}
+          onRemoveIncluded={(tagId) => setIncludedTags(includedTags.filter(id => id !== tagId))}
+          onRemoveExcluded={(tagId) => setExcludedTags(excludedTags.filter(id => id !== tagId))}
+          isVisible={isLeftPaneVisible}
+          onToggleVisibility={setIsLeftPaneVisible}
+          showExclude={true}
+        />
 
-            {/* Tag List */}
-            <div className="flex-1 overflow-y-auto p-2">
-              {filteredTags.length === 0 ? (
-                <div className="text-center py-8 text-sm text-muted-foreground">
-                  No tags found
-                </div>
-              ) : (
-                <div className="space-y-1">
-                  {filteredTags.map((tag) => {
-                    const isIncluded = includedTags.includes(tag.id)
-                    const isExcluded = excludedTags.includes(tag.id)
-
-                    return (
-                      <div
-                        key={tag.id}
-                        className={`
-                          flex items-center justify-between px-3 py-2 rounded-md text-sm cursor-pointer transition-colors
-                          ${isIncluded ? 'bg-primary text-primary-foreground' : ''}
-                          ${isExcluded ? 'bg-red-500 text-white' : ''}
-                          ${!isIncluded && !isExcluded ? 'hover:bg-accent hover:text-accent-foreground' : ''}
-                        `}
-                        onClick={() => handleTagClick(tag.id, false)}
-                        onContextMenu={(e) => {
-                          e.preventDefault()
-                          handleTagClick(tag.id, true)
-                        }}
-                      >
-                        <span className="flex-1 truncate">{tag.name}</span>
-                        {(isIncluded || isExcluded) && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              if (isIncluded) {
-                                setIncludedTags(includedTags.filter(id => id !== tag.id))
-                              } else {
-                                setExcludedTags(excludedTags.filter(id => id !== tag.id))
-                              }
-                            }}
-                            className="ml-2"
-                          >
-                            <XIcon className="w-3 h-3" />
-                          </button>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Toggle Button */}
-            <div className="p-2 border-t border-border">
-              <button
-                onClick={() => setIsLeftPaneVisible(false)}
-                className="w-full flex items-center justify-center py-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <ChevronUpIcon className="w-4 h-4 rotate-[-90deg]" />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Toggle Button (when left pane hidden) */}
-        {!isLeftPaneVisible && (
-          <button
-            onClick={() => setIsLeftPaneVisible(true)}
-            className="w-8 flex items-center justify-center bg-card/80 backdrop-blur-md rounded-lg border border-border hover:bg-accent transition-colors"
-          >
-            <ChevronUpIcon className="w-4 h-4 rotate-90" />
-          </button>
-        )}
+        {/* Middle Pane - Folder Tree Filter */}
+        <FolderTreePane
+          samplePaths={samplePathsForFolderTree}
+          includedFolders={includedFolders}
+          excludedFolders={excludedFolders}
+          onFolderClick={handleFolderClick}
+          onRemoveIncluded={(path) => setIncludedFolders(includedFolders.filter(p => p !== path))}
+          onRemoveExcluded={(path) => setExcludedFolders(excludedFolders.filter(p => p !== path))}
+          isVisible={isFolderPaneVisible}
+          onToggleVisibility={setIsFolderPaneVisible}
+        />
 
         {/* Right Pane - Sample Browser */}
         <div className="flex-1 flex flex-col bg-card/80 backdrop-blur-md rounded-lg border border-border overflow-hidden">
