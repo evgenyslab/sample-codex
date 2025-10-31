@@ -201,7 +201,7 @@ export default function Browser() {
   }
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex h-screen bg-background overflow-x-hidden">
       <Sidebar
         onAddFolders={() => setIsFolderBrowserOpen(true)}
         onOpenSettings={() => setIsSettingsOpen(true)}

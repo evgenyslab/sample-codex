@@ -260,7 +260,7 @@ export default function FolderTreePane({
         </div>
 
         {/* Folder Tree */}
-        <div className="flex-1 overflow-y-auto p-2">
+        <div className="flex-1 overflow-y-auto overflow-x-auto p-2">
           {Object.keys(filteredTree).length === 0 ? (
             <div className="text-center py-8 text-sm text-muted-foreground">
               No folders found

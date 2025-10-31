@@ -84,4 +84,10 @@ body {
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));
   font-feature-settings: "rlig" 1, "calt" 1;
+  overflow-x: hidden; /* Disable horizontal scroll on the window */
+}
+
+/* Allow horizontal scroll in filter panes for long content */
+.filter-pane-scroll {
+  overflow-x: auto;
 }
