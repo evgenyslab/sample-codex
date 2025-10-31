@@ -39,6 +39,7 @@ export default function Browser() {
   const [excludedFolders, setExcludedFolders] = useState([])
   const [sortColumn, setSortColumn] = useState(null) // 'name' | 'duration' | 'channels'
   const [sortDirection, setSortDirection] = useState(null) // 'asc' | 'desc'
+  const lastClickedIndexRef = useRef(null) // Track last clicked index for shift-click range selection
 
   const tableRef = useRef(null)
 
@@ -526,7 +527,7 @@ export default function Browser() {
                         height: `${virtualRow.size}px`,
                         transform: `translateY(${virtualRow.start}px)`,
                       }}
-                      className={`flex items-center text-sm border-b border-border transition-colors cursor-pointer ${
+                      className={`flex items-center text-sm border-b border-border transition-colors cursor-pointer select-none ${
                         isSelected
                           ? 'bg-primary/20 hover:bg-primary/25 border-l-4 border-l-primary'
                           : selectedSamples.has(sample.id)
@@ -534,8 +535,26 @@ export default function Browser() {
                           : 'hover:bg-accent'
                       }`}
                       onClick={(e) => {
-                        // Cmd/Ctrl+click for multi-select
-                        if (e.metaKey || e.ctrlKey) {
+                        const currentIndex = samples.findIndex(s => s.id === sample.id)
+
+                        // Shift+click for range selection
+                        if (e.shiftKey && lastClickedIndexRef.current !== null) {
+                          e.preventDefault()
+                          const startIndex = Math.min(lastClickedIndexRef.current, currentIndex)
+                          const endIndex = Math.max(lastClickedIndexRef.current, currentIndex)
+
+                          // Select all samples in range
+                          const rangeIds = new Set()
+                          for (let i = startIndex; i <= endIndex; i++) {
+                            rangeIds.add(samples[i].id)
+                          }
+
+                          setSelectedSamples(rangeIds)
+                          setIsPlayerOpen(false)
+                          setSelectedSample(null)
+                        }
+                        // Cmd/Ctrl+click for multi-select toggle
+                        else if (e.metaKey || e.ctrlKey) {
                           e.preventDefault()
                           const newSelected = new Set(selectedSamples)
 
@@ -556,11 +575,17 @@ export default function Browser() {
                           // Close player since we're now in multi-select mode
                           setIsPlayerOpen(false)
                           setSelectedSample(null)
+
+                          // Update last clicked index
+                          lastClickedIndexRef.current = currentIndex
                         } else {
                           // Regular click - single select with player
                           setSelectedSample(sample)
                           setIsPlayerOpen(true)
                           setSelectedSamples(new Set()) // Clear multi-select
+
+                          // Update last clicked index
+                          lastClickedIndexRef.current = currentIndex
                         }
                       }}
                     >
