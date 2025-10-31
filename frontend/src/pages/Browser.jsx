@@ -373,6 +373,13 @@ export default function Browser() {
         }
 
         setIsTagPopupOpen(true)
+      } else if (e.key === 'k' && selectedSample) {
+        // Scroll to currently selected sample
+        e.preventDefault()
+        const currentIndex = samples.findIndex(s => s.id === selectedSample.id)
+        if (currentIndex >= 0) {
+          rowVirtualizer.scrollToIndex(currentIndex, { align: 'center' })
+        }
       } else if (e.key === 'c' && selectedSamples.size > 0) {
         // Open collection popup (TODO: future)
         e.preventDefault()
@@ -382,7 +389,7 @@ export default function Browser() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedSamples, samples, selectedSample, isPlayerOpen, isFolderPaneVisible])
+  }, [selectedSamples, samples, selectedSample, isPlayerOpen, isFolderPaneVisible, rowVirtualizer])
 
   return (
     <div className="flex h-screen bg-background overflow-x-hidden">
