@@ -15,6 +15,7 @@ class Tag(BaseModel):
     name: str
     color: Optional[str] = None
     auto_generated: bool = False
+    is_system: bool = False
 
 
 class AddTagsRequest(BaseModel):
@@ -50,9 +51,21 @@ async def create_tag(tag: Tag):
 
 @router.put("/{tag_id}")
 async def update_tag(tag_id: int, tag: Tag):
-    """Update tag"""
+    """Update tag (system tags can only update color)"""
     with db.get_connection() as conn:
-        cursor = conn.execute("UPDATE tags SET name = ?, color = ? WHERE id = ?", (tag.name, tag.color, tag_id))
+        # Check if tag is a system tag
+        existing = conn.execute("SELECT is_system FROM tags WHERE id = ?", (tag_id,)).fetchone()
+        if not existing:
+            raise HTTPException(status_code=404, detail="Tag not found")
+
+        is_system = existing["is_system"]
+
+        if is_system:
+            # System tags can only update color, not name
+            cursor = conn.execute("UPDATE tags SET color = ? WHERE id = ?", (tag.color, tag_id))
+        else:
+            cursor = conn.execute("UPDATE tags SET name = ?, color = ? WHERE id = ?", (tag.name, tag.color, tag_id))
+
         conn.commit()
 
         if cursor.rowcount == 0:
@@ -63,8 +76,16 @@ async def update_tag(tag_id: int, tag: Tag):
 
 @router.delete("/{tag_id}")
 async def delete_tag(tag_id: int):
-    """Delete tag"""
+    """Delete tag (system tags cannot be deleted)"""
     with db.get_connection() as conn:
+        # Check if tag is a system tag
+        tag = conn.execute("SELECT is_system, name FROM tags WHERE id = ?", (tag_id,)).fetchone()
+        if not tag:
+            raise HTTPException(status_code=404, detail="Tag not found")
+
+        if tag["is_system"]:
+            raise HTTPException(status_code=403, detail=f"Cannot delete system tag '{tag['name']}'")
+
         cursor = conn.execute("DELETE FROM tags WHERE id = ?", (tag_id,))
         conn.commit()
 
