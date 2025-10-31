@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useImperativeHandle, forwardRef } from 'react';
 import { Play, Pause, Square, Repeat, X } from 'lucide-react';
 import WaveformDisplay from './WaveformDisplay';
 import useAudioPlayback from '../../hooks/useAudioPlayback';
@@ -15,7 +15,7 @@ import './SamplePlayer.css';
  * @param {boolean} props.isOpen - Whether the player is visible
  * @param {Function} props.onClose - Callback to close the player
  */
-export default function SamplePlayer({ sample, isOpen, onClose }) {
+const SamplePlayer = forwardRef(({ sample, isOpen, onClose }, ref) => {
   const [audioBlob, setAudioBlob] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -33,6 +33,11 @@ export default function SamplePlayer({ sample, isOpen, onClose }) {
     toggleLoop,
     seek,
   } = useAudioPlayback(audioBlob);
+
+  // Expose toggleLoop to parent via ref
+  useImperativeHandle(ref, () => ({
+    toggleLoop
+  }));
 
   // Track when sample changes while playing - set autoplay flag
   useEffect(() => {
@@ -207,4 +212,8 @@ export default function SamplePlayer({ sample, isOpen, onClose }) {
       </div>
     </div>
   );
-}
+});
+
+SamplePlayer.displayName = 'SamplePlayer';
+
+export default SamplePlayer;

@@ -231,18 +231,32 @@ export default function FolderTreePane({
             >
               <span className="truncate">{value.name}</span>
 
-              {/* Remove Button */}
-              {(isIncluded || isExcluded) && (
+              {/* Remove Button - shown for directly selected or parent with selected children */}
+              {(isIncluded || isExcluded || hasSelectedChild) && (
                 <button
                   onClick={(e) => {
+                    e.stopPropagation()
                     if (isIncluded) {
                       handleRemoveIncluded(e, value.fullPath)
-                    } else {
+                    } else if (isExcluded) {
                       handleRemoveExcluded(e, value.fullPath)
+                    } else if (hasSelectedChild) {
+                      // Remove all child filters
+                      const normalizedPath = value.fullPath.endsWith('/') ? value.fullPath : value.fullPath + '/'
+                      includedFolders.forEach(folder => {
+                        if (folder.startsWith(normalizedPath)) {
+                          onRemoveIncluded(folder)
+                        }
+                      })
+                      excludedFolders.forEach(folder => {
+                        if (folder.startsWith(normalizedPath)) {
+                          onRemoveExcluded(folder)
+                        }
+                      })
                     }
                   }}
                   className="ml-2 hover:opacity-70 transition-opacity flex-shrink-0"
-                  title="Remove filter"
+                  title={hasSelectedChild && !isIncluded && !isExcluded ? "Remove child filters" : "Remove filter"}
                 >
                   <XIcon className="w-3 h-3" />
                 </button>

@@ -29,36 +29,106 @@ class SampleUpdate(BaseModel):
 
 
 @router.get("")
-async def list_samples(page: int = 1, limit: int = ITEMS_PER_PAGE, folder_id: Optional[int] = None):
-    """List samples with pagination and optional filtering"""
+async def list_samples(
+    page: int = 1,
+    limit: int = ITEMS_PER_PAGE,
+    folder_id: Optional[int] = None,
+    tags: Optional[str] = None,
+    exclude_tags: Optional[str] = None
+):
+    """List samples with pagination and optional filtering by folder and tags"""
     offset = (page - 1) * limit
 
     with db.get_connection() as conn:
+        # Parse tag IDs
+        include_tag_ids = [int(tid) for tid in tags.split(',')] if tags else []
+        exclude_tag_ids = [int(tid) for tid in exclude_tags.split(',')] if exclude_tags else []
+
         # Build query
-        query = "SELECT * FROM samples WHERE indexed = 1"
-        params = []
+        if include_tag_ids or exclude_tag_ids:
+            # Use subquery to filter by tags
+            query = "SELECT s.* FROM samples s WHERE s.indexed = 1"
+            params = []
 
-        if folder_id:
-            # Get folder path and filter
-            folder = conn.execute("SELECT path FROM folders WHERE id = ?", (folder_id,)).fetchone()
-            if folder:
-                query += " AND filepath LIKE ?"
-                params.append(f"{folder['path']}%")
+            # Include tags filter (sample must have ALL included tags)
+            if include_tag_ids:
+                for tag_id in include_tag_ids:
+                    query += f" AND EXISTS (SELECT 1 FROM sample_tags st WHERE st.sample_id = s.id AND st.tag_id = ?)"
+                    params.append(tag_id)
 
-        query += " ORDER BY filename LIMIT ? OFFSET ?"
-        params.extend([limit, offset])
+            # Exclude tags filter (sample must NOT have ANY excluded tags)
+            if exclude_tag_ids:
+                placeholders = ','.join('?' * len(exclude_tag_ids))
+                query += f" AND NOT EXISTS (SELECT 1 FROM sample_tags st WHERE st.sample_id = s.id AND st.tag_id IN ({placeholders}))"
+                params.extend(exclude_tag_ids)
+
+            if folder_id:
+                folder = conn.execute("SELECT path FROM folders WHERE id = ?", (folder_id,)).fetchone()
+                if folder:
+                    query += " AND s.filepath LIKE ?"
+                    params.append(f"{folder['path']}%")
+
+            query += " ORDER BY s.filename LIMIT ? OFFSET ?"
+            params.extend([limit, offset])
+        else:
+            # No tag filtering - simpler query
+            query = "SELECT * FROM samples WHERE indexed = 1"
+            params = []
+
+            if folder_id:
+                folder = conn.execute("SELECT path FROM folders WHERE id = ?", (folder_id,)).fetchone()
+                if folder:
+                    query += " AND filepath LIKE ?"
+                    params.append(f"{folder['path']}%")
+
+            query += " ORDER BY filename LIMIT ? OFFSET ?"
+            params.extend([limit, offset])
 
         cursor = conn.execute(query, params)
         samples = [dict(row) for row in cursor.fetchall()]
 
-        # Get total count
-        count_query = "SELECT COUNT(*) as total FROM samples WHERE indexed = 1"
-        count_params = []
-        if folder_id:
-            folder = conn.execute("SELECT path FROM folders WHERE id = ?", (folder_id,)).fetchone()
-            if folder:
-                count_query += " AND filepath LIKE ?"
-                count_params.append(f"{folder['path']}%")
+        # Get tags for each sample
+        for sample in samples:
+            tags_cursor = conn.execute(
+                """
+                SELECT t.id, t.name, t.color, st.confidence
+                FROM tags t
+                JOIN sample_tags st ON t.id = st.tag_id
+                WHERE st.sample_id = ?
+                ORDER BY t.name
+                """,
+                (sample['id'],)
+            )
+            sample['tags'] = [dict(row) for row in tags_cursor.fetchall()]
+
+        # Get total count with same filters
+        if include_tag_ids or exclude_tag_ids:
+            count_query = "SELECT COUNT(*) as total FROM samples s WHERE s.indexed = 1"
+            count_params = []
+
+            if include_tag_ids:
+                for tag_id in include_tag_ids:
+                    count_query += f" AND EXISTS (SELECT 1 FROM sample_tags st WHERE st.sample_id = s.id AND st.tag_id = ?)"
+                    count_params.append(tag_id)
+
+            if exclude_tag_ids:
+                placeholders = ','.join('?' * len(exclude_tag_ids))
+                count_query += f" AND NOT EXISTS (SELECT 1 FROM sample_tags st WHERE st.sample_id = s.id AND st.tag_id IN ({placeholders}))"
+                count_params.extend(exclude_tag_ids)
+
+            if folder_id:
+                folder = conn.execute("SELECT path FROM folders WHERE id = ?", (folder_id,)).fetchone()
+                if folder:
+                    count_query += " AND s.filepath LIKE ?"
+                    count_params.append(f"{folder['path']}%")
+        else:
+            count_query = "SELECT COUNT(*) as total FROM samples WHERE indexed = 1"
+            count_params = []
+            if folder_id:
+                folder = conn.execute("SELECT path FROM folders WHERE id = ?", (folder_id,)).fetchone()
+                if folder:
+                    count_query += " AND filepath LIKE ?"
+                    count_params.append(f"{folder['path']}%")
 
         total = conn.execute(count_query, count_params).fetchone()["total"]
 

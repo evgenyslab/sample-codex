@@ -22,6 +22,7 @@ export default function FilterPane({
   type = 'items',
   includedItems = [],
   excludedItems = [],
+  highlightedItems = [],
   onItemClick,
   onRemoveIncluded,
   onRemoveExcluded,
@@ -35,16 +36,34 @@ export default function FilterPane({
 
   // Get display names (for future use in tooltips/labels)
 
-  // Filter items based on search
+  // Filter items based on search, and sort highlighted items to top
   const filteredItems = useMemo(() => {
     if (!items) return []
-    if (!searchQuery) return items
 
-    const searchLower = searchQuery.toLowerCase()
-    return items.filter(item =>
-      getItemLabel(item).toLowerCase().includes(searchLower)
-    )
-  }, [items, searchQuery, getItemLabel])
+    let filtered = items
+
+    // Apply search filter
+    if (searchQuery) {
+      const searchLower = searchQuery.toLowerCase()
+      filtered = items.filter(item =>
+        getItemLabel(item).toLowerCase().includes(searchLower)
+      )
+    }
+
+    // Sort highlighted items to top
+    if (highlightedItems && highlightedItems.length > 0) {
+      filtered = [...filtered].sort((a, b) => {
+        const aHighlighted = highlightedItems.includes(getItemId(a))
+        const bHighlighted = highlightedItems.includes(getItemId(b))
+
+        if (aHighlighted && !bHighlighted) return -1
+        if (!aHighlighted && bHighlighted) return 1
+        return 0
+      })
+    }
+
+    return filtered
+  }, [items, searchQuery, highlightedItems, getItemLabel, getItemId])
 
   const handleItemClick = (itemId, isRightClick) => {
     if (onItemClick) {
@@ -97,6 +116,7 @@ export default function FilterPane({
                 const itemLabel = getItemLabel(item)
                 const isIncluded = includedItems.includes(itemId)
                 const isExcluded = excludedItems.includes(itemId)
+                const isHighlighted = highlightedItems.includes(itemId)
 
                 return (
                   <div
@@ -105,7 +125,8 @@ export default function FilterPane({
                       flex items-center justify-between px-3 py-2 rounded-md text-sm cursor-pointer transition-colors
                       ${isIncluded ? 'bg-primary text-primary-foreground' : ''}
                       ${isExcluded ? 'bg-red-500 text-white' : ''}
-                      ${!isIncluded && !isExcluded ? 'hover:bg-accent hover:text-accent-foreground' : ''}
+                      ${!isIncluded && !isExcluded && isHighlighted ? 'bg-yellow-500/20 border-l-2 border-l-yellow-500 dark:bg-yellow-900/30' : ''}
+                      ${!isIncluded && !isExcluded && !isHighlighted ? 'hover:bg-accent hover:text-accent-foreground' : ''}
                     `}
                     onClick={() => handleItemClick(itemId, false)}
                     onContextMenu={(e) => {

@@ -31,6 +31,8 @@ export const addTagsToSample = (sampleId, tagIds) =>
   api.post(`/tags/samples/${sampleId}/tags`, { tag_ids: tagIds });
 export const removeTagFromSample = (sampleId, tagId) =>
   api.delete(`/tags/samples/${sampleId}/tags/${tagId}`);
+export const bulkUpdateSampleTags = (sampleIds, addTagIds, removeTagIds) =>
+  api.post('/tags/bulk', { sample_ids: sampleIds, add_tag_ids: addTagIds, remove_tag_ids: removeTagIds });
 
 // Collections
 export const listCollections = () => api.get('/collections');

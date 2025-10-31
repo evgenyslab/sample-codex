@@ -23,6 +23,12 @@ class AddTagsRequest(BaseModel):
     confidence: float = 1.0
 
 
+class BulkUpdateTagsRequest(BaseModel):
+    sample_ids: List[int]
+    add_tag_ids: List[int] = []
+    remove_tag_ids: List[int] = []
+
+
 @router.get("")
 async def list_tags():
     """List all tags"""
@@ -129,3 +135,62 @@ async def remove_tag_from_sample(sample_id: int, tag_id: int):
             raise HTTPException(status_code=404, detail="Tag assignment not found")
 
         return {"status": "tag removed", "sample_id": sample_id, "tag_id": tag_id}
+
+
+@router.post("/bulk")
+async def bulk_update_sample_tags(request: BulkUpdateTagsRequest):
+    """
+    Bulk update tags for multiple samples
+
+    Cleanly identifies which tags to add to which samples and which tags to remove from which samples.
+    For each sample in sample_ids:
+    - Tags in add_tag_ids will be added (if not already present)
+    - Tags in remove_tag_ids will be removed (if present)
+    """
+    with db.get_connection() as conn:
+        # Verify all samples exist
+        placeholders = ",".join("?" * len(request.sample_ids))
+        cursor = conn.execute(f"SELECT id FROM samples WHERE id IN ({placeholders})", request.sample_ids)
+        existing_samples = {row["id"] for row in cursor.fetchall()}
+
+        if len(existing_samples) != len(request.sample_ids):
+            missing = set(request.sample_ids) - existing_samples
+            raise HTTPException(status_code=404, detail=f"Samples not found: {missing}")
+
+        # Process tag additions
+        added_count = 0
+        for sample_id in request.sample_ids:
+            for tag_id in request.add_tag_ids:
+                try:
+                    conn.execute(
+                        "INSERT OR IGNORE INTO sample_tags (sample_id, tag_id, confidence) VALUES (?, ?, ?)",
+                        (sample_id, tag_id, 1.0),
+                    )
+                    if conn.total_changes > 0:
+                        added_count += 1
+                except Exception as e:
+                    raise HTTPException(status_code=400, detail=f"Error adding tag {tag_id} to sample {sample_id}: {str(e)}")
+
+        # Process tag removals
+        removed_count = 0
+        for sample_id in request.sample_ids:
+            for tag_id in request.remove_tag_ids:
+                cursor = conn.execute(
+                    "DELETE FROM sample_tags WHERE sample_id = ? AND tag_id = ?",
+                    (sample_id, tag_id)
+                )
+                removed_count += cursor.rowcount
+
+        conn.commit()
+
+        return {
+            "status": "success",
+            "samples_updated": len(request.sample_ids),
+            "tags_added": added_count,
+            "tags_removed": removed_count,
+            "details": {
+                "sample_ids": request.sample_ids,
+                "add_tag_ids": request.add_tag_ids,
+                "remove_tag_ids": request.remove_tag_ids
+            }
+        }
