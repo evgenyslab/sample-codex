@@ -103,9 +103,9 @@ const Sidebar = ({ onAddFolders, onOpenSettings, stats, health }) => {
         <div className={`pt-3 border-t ${isCollapsed ? 'space-y-3' : 'space-y-2'}`}>
           {/* Connection Status */}
           <div className={`flex items-center pb-2 ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
-            <span className={`text-xs text-muted-foreground overflow-hidden transition-opacity duration-150 whitespace-nowrap ${isCollapsed ? 'opacity-0 w-0' : 'opacity-100'}`}>Status</span>
-            <div className="flex items-center gap-1.5">
-              <div className={`rounded-full ${isCollapsed ? 'w-2 h-2' : 'w-1.5 h-1.5'} ${
+            <span className={`text-xs text-muted-foreground overflow-hidden transition-opacity duration-150 whitespace-nowrap ${isCollapsed ? 'opacity-0 w-0 display-none' : 'opacity-100'}`}>Status</span>
+            <div className="flex items-center">
+              <div className={`rounded-full ${isCollapsed ? 'w-2 h-2' : 'w-1.5 h-1.5 gap-1.5'} ${
                 health?.database ? 'bg-green-500' : 'bg-red-500'
               }`} title={health?.database ? 'Connected' : 'Disconnected'} />
               <span className={`text-xs font-medium text-foreground overflow-hidden transition-opacity duration-150 whitespace-nowrap ${isCollapsed ? 'opacity-0 w-0' : 'opacity-100'}`}>

@@ -1,5 +1,12 @@
 # TODO's
 
+- add folder browser page like tag browser
+    - needs to show root common folder
+- add collection browser page like tag browser
+- default sidebar collapsed
+- default view to browser
+- default tag browser collapsed (persist state)
+
 - Implement Browser page
     - Browser component needs to be two panes, left pane (narrow), right pane (wide)
     - left pane maybe add toggle on/off function
@@ -19,8 +26,6 @@
     - pitch slider or semitone toggle
 - Allow loading db from different file from FE
 - Update db size estimate in FE
-- BE should use pyproject.toml, be installable into virtual env, all controlled from repo-root
-- BE should use ruff
 - BE needs unit tests for API
 - FE needs unit tests
 - FE Connected status should be continously checking BE... maybe via websocket

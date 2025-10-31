@@ -16,7 +16,7 @@ class Database:
         self.db_path = db_path
         self._ensure_database()
 
-    def _ensure_database(self):
+    def _ensure_database(self) -> None:
         """Create database file and tables if they don't exist"""
         Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
 
@@ -31,7 +31,7 @@ class Database:
         conn.execute("PRAGMA foreign_keys = ON")
         return conn
 
-    def _migrate_add_metadata_columns(self, conn: sqlite3.Connection):
+    def _migrate_add_metadata_columns(self, conn: sqlite3.Connection) -> None:
         """Add metadata columns to existing samples table if they don't exist"""
         try:
             # Check if columns exist
@@ -56,7 +56,7 @@ class Database:
             logger.error(f"Error during metadata columns migration: {e}")
             # Don't raise - table might not exist yet
 
-    def _create_tables(self, conn: sqlite3.Connection):
+    def _create_tables(self, conn: sqlite3.Connection) -> None:
         """Create all database tables"""
 
         # Samples table
