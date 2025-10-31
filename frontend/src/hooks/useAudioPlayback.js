@@ -17,6 +17,7 @@ export default function useAudioPlayback(audioBlob) {
   const [audioBuffer, setAudioBuffer] = useState(null);
 
   const sourceNodeRef = useRef(null);
+  const gainNodeRef = useRef(null);
   const startTimeRef = useRef(0);
   const pauseTimeRef = useRef(0);
   const animationFrameRef = useRef(null);
@@ -140,7 +141,16 @@ export default function useAudioPlayback(audioBlob) {
       } catch (e) {
         // Ignore if already stopped
       }
+      sourceNodeRef.current.disconnect();
       sourceNodeRef.current = null;
+    }
+
+    // Create or reuse gain node
+    if (!gainNodeRef.current) {
+      gainNodeRef.current = audioContext.createGain();
+      gainNodeRef.current.gain.value = 1.0;
+      gainNodeRef.current.connect(audioContext.destination);
+      console.log('Gain node created and connected to destination');
     }
 
     // Create new source
@@ -148,10 +158,9 @@ export default function useAudioPlayback(audioBlob) {
     source.buffer = audioBuffer;
     source.loop = isLooping;
 
-    // Connect to destination
-    const destination = audioContext.destination;
-    console.log('Audio destination:', destination);
-    source.connect(destination);
+    // Connect: source -> gain -> destination
+    source.connect(gainNodeRef.current);
+    console.log('Audio chain: source -> gain -> destination');
 
     // Start from pause position
     const offset = pauseTimeRef.current % duration;
@@ -160,11 +169,23 @@ export default function useAudioPlayback(audioBlob) {
       offset,
       loop: isLooping,
       contextState: audioContext.state,
-      contextTime: audioContext.currentTime
+      contextTime: audioContext.currentTime,
+      sampleRate: audioContext.sampleRate,
+      destination: audioContext.destination.channelCount + ' channels',
+      gainValue: gainNodeRef.current.gain.value
     });
 
     source.start(0, offset);
-    console.log('source.start() called successfully');
+    console.log('source.start() called successfully - audio should be playing!');
+
+    // Check if audio is actually flowing
+    setTimeout(() => {
+      if (audioContext.state !== 'running') {
+        console.warn('AudioContext not running after start!', audioContext.state);
+      } else {
+        console.log('AudioContext confirmed running');
+      }
+    }, 100);
 
     sourceNodeRef.current = source;
     startTimeRef.current = audioContext.currentTime - pauseTimeRef.current;
