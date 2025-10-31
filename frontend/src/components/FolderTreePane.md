@@ -6,7 +6,7 @@ A hierarchical folder tree component with expand/collapse functionality for filt
 
 - ✅ Hierarchical folder tree display
 - ✅ Expand/collapse folders
-- ✅ Click to include, Shift+Click to exclude
+- ✅ Click to include, Ctrl/Cmd+Click to exclude
 - ✅ Common root path detection and removal
 - ✅ Search/filter folders
 - ✅ Visual differentiation for included/excluded folders
@@ -21,7 +21,7 @@ A hierarchical folder tree component with expand/collapse functionality for filt
 | `samplePaths` | Array | `[]` | Array of full file paths from samples |
 | `includedFolders` | Array | `[]` | Array of included folder paths |
 | `excludedFolders` | Array | `[]` | Array of excluded folder paths |
-| `onFolderClick` | Function | - | Callback when folder is clicked: `(folderPath, isShiftClick) => void` |
+| `onFolderClick` | Function | - | Callback when folder is clicked: `(folderPath, isCtrlClick) => void` |
 | `onRemoveIncluded` | Function | - | Callback to remove from included: `(folderPath) => void` |
 | `onRemoveExcluded` | Function | - | Callback to remove from excluded: `(folderPath) => void` |
 | `isVisible` | Boolean | `true` | Whether the pane is visible |
@@ -45,9 +45,9 @@ function MyComponent() {
     return samples.map(s => s.path).filter(Boolean)
   }, [samples])
 
-  const handleFolderClick = (folderPath, isShiftClick) => {
-    if (isShiftClick) {
-      // Shift-click: toggle exclude
+  const handleFolderClick = (folderPath, isCtrlClick) => {
+    if (isCtrlClick) {
+      // Ctrl/Cmd-click: toggle exclude
       if (excludedFolders.includes(folderPath)) {
         setExcludedFolders(excludedFolders.filter(p => p !== folderPath))
       } else {
@@ -152,7 +152,7 @@ The folder tree is built by:
 - **Expand/Collapse Button** (chevron icon): Expands or collapses child folders
 - **Folder Name Area**:
   - **Click**: Toggle include (adds to included folders)
-  - **Shift+Click**: Toggle exclude (adds to excluded folders)
+  - **Ctrl+Click** (Windows/Linux) or **Cmd+Click** (Mac): Toggle exclude (adds to excluded folders)
 - **X Button**: Remove from included/excluded list
 
 ### Visual States

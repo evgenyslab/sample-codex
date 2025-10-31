@@ -58,6 +58,8 @@ function buildFolderTree(paths) {
 
 /**
  * FolderTreePane - A hierarchical folder filter with expand/collapse
+ *
+ * Click to include, Ctrl/Cmd+Click to exclude folders
  */
 export default function FolderTreePane({
   samplePaths = [],
@@ -155,6 +157,18 @@ export default function FolderTreePane({
       const isIncluded = includedFolders.includes(value.fullPath)
       const isExcluded = excludedFolders.includes(value.fullPath)
 
+      // Check if any child folder is selected (for parent highlighting)
+      // Use proper path delimiter checking
+      const normalizedPath = value.fullPath.endsWith('/') ? value.fullPath : value.fullPath + '/'
+      const hasSelectedChild = includedFolders.some(folder =>
+        folder !== value.fullPath && folder.startsWith(normalizedPath)
+      ) || excludedFolders.some(excluded =>
+        excluded !== value.fullPath && excluded.startsWith(normalizedPath)
+      )
+      const hasExcludedChild = excludedFolders.some(folder =>
+        folder !== value.fullPath && folder.startsWith(normalizedPath)
+      )
+
       return (
         <div key={value.fullPath}>
           <div
@@ -162,7 +176,9 @@ export default function FolderTreePane({
               flex items-center gap-1 px-2 py-1.5 rounded-md text-sm transition-colors
               ${isIncluded ? 'bg-primary text-primary-foreground' : ''}
               ${isExcluded ? 'bg-red-500 text-white' : ''}
-              ${!isIncluded && !isExcluded ? 'hover:bg-accent hover:text-accent-foreground' : ''}
+              ${!isIncluded && !isExcluded && hasSelectedChild && !hasExcludedChild ? 'bg-primary/20 text-foreground' : ''}
+              ${!isIncluded && !isExcluded && hasExcludedChild ? 'bg-red-500/20 text-foreground' : ''}
+              ${!isIncluded && !isExcluded && !hasSelectedChild && !hasExcludedChild ? 'hover:bg-accent hover:text-accent-foreground' : ''}
             `}
             style={{ paddingLeft: `${depth * 12 + 8}px` }}
           >
@@ -190,8 +206,8 @@ export default function FolderTreePane({
             {/* Folder Name - Clickable area */}
             <div
               className="flex-1 flex items-center justify-between cursor-pointer min-w-0"
-              onClick={(e) => handleFolderClick(value.fullPath, e.shiftKey)}
-              title={`${value.fullPath}\nClick to include, Shift+Click to exclude`}
+              onClick={(e) => handleFolderClick(value.fullPath, e.ctrlKey || e.metaKey)}
+              title={`${value.fullPath}\nClick to include, Ctrl/Cmd+Click to exclude`}
             >
               <span className="truncate">{value.name}</span>
 

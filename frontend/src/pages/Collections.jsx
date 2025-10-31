@@ -1,9 +1,10 @@
-import { useState } from 'react'
-import Sidebar from '../components/Sidebar'
+import { getScannedFolders, healthCheck, listCollections, listSamples, listTags } from '../services/api'
+
 import FolderBrowserModal from '../components/FolderBrowserModal'
 import SettingsModal from '../components/SettingsModal'
+import Sidebar from '../components/Sidebar'
 import { useQuery } from '@tanstack/react-query'
-import { healthCheck, listSamples, listTags, getScannedFolders, listCollections } from '../services/api'
+import { useState } from 'react'
 
 export default function Collections() {
   const [isFolderBrowserOpen, setIsFolderBrowserOpen] = useState(false)
@@ -68,7 +69,7 @@ export default function Collections() {
       <div className="flex-1 overflow-auto bg-muted/40">
         <div className="p-8">
           <h1 className="text-2xl font-semibold tracking-tight mb-2">Collections</h1>
-          <p className="text-muted-foreground">Collections page placeholder</p>
+          <p className="text-muted-foreground">Collections Management page placeholder</p>
         </div>
       </div>
 

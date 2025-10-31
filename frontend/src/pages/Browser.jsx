@@ -77,6 +77,14 @@ export default function Browser() {
     collections: collectionsData?.collections?.length || 0,
   }
 
+  // Helper function to check if a path is in a folder (with proper delimiter checking)
+  const isPathInFolder = (filePath, folderPath) => {
+    if (!filePath || !folderPath) return false
+    // Ensure folder path ends with / for proper matching
+    const normalizedFolder = folderPath.endsWith('/') ? folderPath : folderPath + '/'
+    return filePath.startsWith(normalizedFolder) || filePath === folderPath
+  }
+
   // Get samples list and filter by search and folders
   const samples = useMemo(() => {
     let filtered = samplesData?.samples || []
@@ -88,13 +96,13 @@ export default function Browser() {
 
         // Check exclusions first
         if (excludedFolders.length > 0) {
-          const isExcluded = excludedFolders.some(folder => samplePath.startsWith(folder))
+          const isExcluded = excludedFolders.some(folder => isPathInFolder(samplePath, folder))
           if (isExcluded) return false
         }
 
         // Check inclusions
         if (includedFolders.length > 0) {
-          const isIncluded = includedFolders.some(folder => samplePath.startsWith(folder))
+          const isIncluded = includedFolders.some(folder => isPathInFolder(samplePath, folder))
           return isIncluded
         }
 
@@ -142,9 +150,9 @@ export default function Browser() {
     }
   }
 
-  const handleFolderClick = (folderPath, isShiftClick = false) => {
-    if (isShiftClick) {
-      // Shift-click: toggle exclude
+  const handleFolderClick = (folderPath, isCtrlClick = false) => {
+    if (isCtrlClick) {
+      // Ctrl/Cmd-click: toggle exclude
       if (excludedFolders.includes(folderPath)) {
         setExcludedFolders(excludedFolders.filter(p => p !== folderPath))
       } else {
