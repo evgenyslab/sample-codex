@@ -120,12 +120,12 @@
 
 .control-button:disabled {
   opacity: 0.5;
-  cursor: not-allowed;
+  /* cursor: not-allowed; */
 }
 
 .control-button.active {
-  background: var(--primary);
-  color: white;
+  background: var(--bg-primary);
+  /* color: white; */
   border-color: var(--primary);
 }
 

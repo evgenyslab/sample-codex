@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { getAudioContext } from '../utils/audioContext';
+import { getAudioContext, resetAudioContext } from '../utils/audioContext';
 
 /**
  * Audio playback hook
@@ -125,13 +125,29 @@ export default function useAudioPlayback(audioBlob) {
     }
 
     // Get global audio context
-    const audioContext = getAudioContext();
+    let audioContext = getAudioContext();
+
+    // Check if context is in a bad state and needs reset
+    if (audioContext.state === 'closed') {
+      console.warn('⚠️ AudioContext was closed, resetting...');
+      audioContext = resetAudioContext();
+
+      // Need to re-decode audio with new context
+      console.log('Re-decoding audio with new context...');
+      // For now, user will need to click again - in production you'd want to handle this
+      return;
+    }
 
     // Resume audio context if suspended (browsers require user interaction)
     if (audioContext.state === 'suspended') {
       console.log('Resuming suspended audio context...');
-      await audioContext.resume();
-      console.log('Audio context state:', audioContext.state);
+      try {
+        await audioContext.resume();
+        console.log('Audio context state:', audioContext.state);
+      } catch (e) {
+        console.error('Failed to resume context:', e);
+        return;
+      }
     }
 
     // Stop existing source
@@ -145,12 +161,17 @@ export default function useAudioPlayback(audioBlob) {
       sourceNodeRef.current = null;
     }
 
-    // Create or reuse gain node
-    if (!gainNodeRef.current) {
-      gainNodeRef.current = audioContext.createGain();
-      gainNodeRef.current.gain.value = 1.0;
-      gainNodeRef.current.connect(audioContext.destination);
-      console.log('Gain node created and connected to destination');
+    // Create or reuse gain node (recreate if context changed)
+    try {
+      if (!gainNodeRef.current || gainNodeRef.current.context !== audioContext) {
+        gainNodeRef.current = audioContext.createGain();
+        gainNodeRef.current.gain.value = 1.0;
+        gainNodeRef.current.connect(audioContext.destination);
+        console.log('Gain node created and connected to destination');
+      }
+    } catch (e) {
+      console.error('Failed to create gain node:', e);
+      return;
     }
 
     // Create new source

@@ -281,6 +281,7 @@ export default function Browser() {
               >
                 {rowVirtualizer.getVirtualItems().map((virtualRow) => {
                   const sample = samples[virtualRow.index]
+                  const isSelected = selectedSample?.id === sample.id
                   return (
                     <div
                       key={sample.id}
@@ -292,7 +293,11 @@ export default function Browser() {
                         height: `${virtualRow.size}px`,
                         transform: `translateY(${virtualRow.start}px)`,
                       }}
-                      className="flex items-center text-sm border-b border-border hover:bg-accent transition-colors cursor-pointer"
+                      className={`flex items-center text-sm border-b border-border transition-colors cursor-pointer ${
+                        isSelected
+                          ? 'bg-primary/20 hover:bg-primary/25 border-l-4 border-l-primary'
+                          : 'hover:bg-accent'
+                      }`}
                       onClick={() => {
                         setSelectedSample(sample)
                         setIsPlayerOpen(true)
