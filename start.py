@@ -65,15 +65,13 @@ def check_dependencies():
     print_info("Checking dependencies...")
 
     # Check Python dependencies
-    requirements_file = BACKEND_DIR / "requirements.txt"
-    if requirements_file.exists():
-        try:
-            import fastapi
-            import uvicorn
-            print_success("Python dependencies found")
-        except ImportError:
-            print_warning("Python dependencies missing. Run: pip install -r backend/requirements.txt")
-            return False
+    try:
+        import fastapi
+        import uvicorn
+        print_success("Python dependencies found")
+    except ImportError:
+        print_warning("Python dependencies missing. Run: pip install -e backend/")
+        return False
 
     # Check Node dependencies
     node_modules = FRONTEND_DIR / "node_modules"

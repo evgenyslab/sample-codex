@@ -1,21 +1,19 @@
 """FastAPI application entry point"""
+
 import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.config import ALLOWED_ORIGINS, FRONTEND_BUILD_DIR
 from app.database import db
-from app.routers import folders, samples, tags, collections, search
+from app.routers import collections, folders, samples, search, tags
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -38,7 +36,7 @@ app = FastAPI(
     title="Audio Sample Manager API",
     description="API for managing audio sample libraries",
     version="0.1.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 # CORS middleware
@@ -62,10 +60,7 @@ app.include_router(search.router, prefix="/api/search", tags=["search"])
 async def health_check():
     """Health check endpoint"""
     db_healthy = db.check_health()
-    return {
-        "status": "healthy" if db_healthy else "unhealthy",
-        "database": db_healthy
-    }
+    return {"status": "healthy" if db_healthy else "unhealthy", "database": db_healthy}
 
 
 @app.post("/api/database/clear")
@@ -73,15 +68,8 @@ async def clear_all_data():
     """Clear all data from the database"""
     success = db.clear_all_data()
     if success:
-        return {
-            "status": "success",
-            "message": "All data has been cleared from the database"
-        }
-    else:
-        return {
-            "status": "error",
-            "message": "Failed to clear data from database"
-        }
+        return {"status": "success", "message": "All data has been cleared from the database"}
+    return {"status": "error", "message": "Failed to clear data from database"}
 
 
 # Serve frontend static files in production

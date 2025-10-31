@@ -1,5 +1,5 @@
 """Application configuration"""
-import os
+
 from pathlib import Path
 
 # Database

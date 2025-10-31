@@ -1,12 +1,14 @@
 """Sample management API endpoints"""
-from fastapi import APIRouter, HTTPException, Response
+
+from pathlib import Path
+from typing import Optional
+
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from typing import List, Optional
-from pathlib import Path
 
-from app.database import db
 from app.config import ITEMS_PER_PAGE
+from app.database import db
 
 router = APIRouter()
 
@@ -27,11 +29,7 @@ class SampleUpdate(BaseModel):
 
 
 @router.get("")
-async def list_samples(
-    page: int = 1,
-    limit: int = ITEMS_PER_PAGE,
-    folder_id: Optional[int] = None
-):
+async def list_samples(page: int = 1, limit: int = ITEMS_PER_PAGE, folder_id: Optional[int] = None):
     """List samples with pagination and optional filtering"""
     offset = (page - 1) * limit
 
@@ -42,9 +40,7 @@ async def list_samples(
 
         if folder_id:
             # Get folder path and filter
-            folder = conn.execute(
-                "SELECT path FROM folders WHERE id = ?", (folder_id,)
-            ).fetchone()
+            folder = conn.execute("SELECT path FROM folders WHERE id = ?", (folder_id,)).fetchone()
             if folder:
                 query += " AND filepath LIKE ?"
                 params.append(f"{folder['path']}%")
@@ -59,9 +55,7 @@ async def list_samples(
         count_query = "SELECT COUNT(*) as total FROM samples WHERE indexed = 1"
         count_params = []
         if folder_id:
-            folder = conn.execute(
-                "SELECT path FROM folders WHERE id = ?", (folder_id,)
-            ).fetchone()
+            folder = conn.execute("SELECT path FROM folders WHERE id = ?", (folder_id,)).fetchone()
             if folder:
                 count_query += " AND filepath LIKE ?"
                 count_params.append(f"{folder['path']}%")
@@ -70,12 +64,7 @@ async def list_samples(
 
         return {
             "samples": samples,
-            "pagination": {
-                "page": page,
-                "limit": limit,
-                "total": total,
-                "pages": (total + limit - 1) // limit
-            }
+            "pagination": {"page": page, "limit": limit, "total": total, "pages": (total + limit - 1) // limit},
         }
 
 
@@ -84,20 +73,21 @@ async def get_sample(sample_id: int):
     """Get sample details including tags"""
     with db.get_connection() as conn:
         # Get sample
-        sample = conn.execute(
-            "SELECT * FROM samples WHERE id = ?", (sample_id,)
-        ).fetchone()
+        sample = conn.execute("SELECT * FROM samples WHERE id = ?", (sample_id,)).fetchone()
 
         if not sample:
             raise HTTPException(status_code=404, detail="Sample not found")
 
         # Get tags
-        tags = conn.execute("""
+        tags = conn.execute(
+            """
             SELECT t.id, t.name, t.color, st.confidence
             FROM tags t
             JOIN sample_tags st ON t.id = st.tag_id
             WHERE st.sample_id = ?
-        """, (sample_id,)).fetchall()
+        """,
+            (sample_id,),
+        ).fetchall()
 
         result = dict(sample)
         result["tags"] = [dict(tag) for tag in tags]
@@ -109,9 +99,7 @@ async def get_sample(sample_id: int):
 async def stream_audio(sample_id: int):
     """Stream audio file"""
     with db.get_connection() as conn:
-        sample = conn.execute(
-            "SELECT filepath FROM samples WHERE id = ?", (sample_id,)
-        ).fetchone()
+        sample = conn.execute("SELECT filepath FROM samples WHERE id = ?", (sample_id,)).fetchone()
 
         if not sample:
             raise HTTPException(status_code=404, detail="Sample not found")
@@ -120,11 +108,7 @@ async def stream_audio(sample_id: int):
         if not filepath.exists():
             raise HTTPException(status_code=404, detail="Audio file not found on disk")
 
-        return FileResponse(
-            filepath,
-            media_type="audio/*",
-            filename=filepath.name
-        )
+        return FileResponse(filepath, media_type="audio/*", filename=filepath.name)
 
 
 @router.put("/{sample_id}")

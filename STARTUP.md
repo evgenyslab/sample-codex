@@ -118,7 +118,7 @@ ExecStart=/usr/bin/python /path/to/sample-codex/start.py --prod
 - mutagen
 - pydub
 
-Install: `pip install -r backend/requirements.txt`
+Install: `pip install -e backend/[dev]`
 
 ### Frontend (Node.js 18+)
 - React 19
@@ -139,7 +139,7 @@ Backend configuration is in `backend/app/config.py`:
 
 ### "Module not found" errors
 ```bash
-pip install -r backend/requirements.txt
+pip install -e backend/[dev]
 npm install --prefix frontend
 ```
 

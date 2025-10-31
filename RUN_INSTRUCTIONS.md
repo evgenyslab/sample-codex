@@ -34,17 +34,21 @@ sample-codex/
 ### 1. Install Python Dependencies
 
 ```bash
-cd backend
-pip install -r requirements.txt
+pip install -e backend/
+```
+
+Or with development dependencies (includes Ruff and MyPy):
+
+```bash
+pip install -e backend/[dev]
 ```
 
 Or with a virtual environment (recommended):
 
 ```bash
-cd backend
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+pip install -e backend/[dev]
 ```
 
 ### 2. Run the Backend
@@ -190,6 +194,8 @@ VITE_API_URL=http://localhost:8000/api
 - **SQLite** with FTS5 - Database with full-text search
 - **Pydantic** - Data validation
 - **Uvicorn** - ASGI server
+- **Ruff** - Fast Python linter and formatter (120 char line length)
+- **MyPy** - Static type checker
 
 ### Frontend
 - **React 19** - UI framework
@@ -197,6 +203,25 @@ VITE_API_URL=http://localhost:8000/api
 - **Tailwind CSS** - Utility-first CSS framework
 - **Tanstack Query (React Query)** - Data fetching and caching
 - **Axios** - HTTP client
+
+## Code Quality
+
+### Linting & Formatting
+
+Run linters and formatters:
+```bash
+# Lint and fix both frontend and backend
+npm run lint
+
+# Backend only
+npm run lint:backend
+npm run format:backend
+
+# Frontend only
+npm run lint:frontend
+```
+
+See [backend/LINTING.md](backend/LINTING.md) for detailed backend linting documentation.
 
 ## Troubleshooting
 

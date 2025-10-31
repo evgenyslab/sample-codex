@@ -1,11 +1,12 @@
 """Folder management API endpoints"""
-from fastapi import APIRouter, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect
-from pydantic import BaseModel
-from typing import Any, List, Optional
-import os
-from pathlib import Path
-import json
+
 import asyncio
+import json
+from pathlib import Path
+from typing import Any, List, Optional
+
+from fastapi import APIRouter, BackgroundTasks, HTTPException, WebSocket, WebSocketDisconnect
+from pydantic import BaseModel
 
 from app.database import db
 from app.services.scanner import scan_folders, scan_folders_with_progress
@@ -51,18 +52,14 @@ async def browse_filesystem(path: str = None) -> dict[str, Any]:
         directories = []
         try:
             for item in sorted(target_path.iterdir()):
-                if item.is_dir() and not item.name.startswith('.'):
+                if item.is_dir() and not item.name.startswith("."):
                     directories.append(item.name)
         except PermissionError:
             raise HTTPException(status_code=403, detail="Permission denied")
 
         parent = str(target_path.parent) if target_path.parent != target_path else None
 
-        return {
-            "path": str(target_path),
-            "directories": directories,
-            "parent": parent
-        }
+        return {"path": str(target_path), "directories": directories, "parent": parent}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -85,10 +82,7 @@ async def start_scan(request: ScanRequest, background_tasks: BackgroundTasks):
     # Add folders to tracking
     with db.get_connection() as conn:
         for path in request.paths:
-            conn.execute(
-                "INSERT OR IGNORE INTO folders (path, status) VALUES (?, ?)",
-                (path, "pending")
-            )
+            conn.execute("INSERT OR IGNORE INTO folders (path, status) VALUES (?, ?)", (path, "pending"))
         conn.commit()
 
     # Start scanning in background
@@ -97,7 +91,7 @@ async def start_scan(request: ScanRequest, background_tasks: BackgroundTasks):
     return {
         "status": "started",
         "message": f"Scan initiated for {len(request.paths)} folder(s)",
-        "paths": request.paths
+        "paths": request.paths,
     }
 
 
@@ -123,34 +117,25 @@ async def websocket_scan_endpoint(websocket: WebSocket):
         # Receive scan request
         data = await websocket.receive_text()
         request_data = json.loads(data)
-        folder_paths = request_data.get('paths', [])
+        folder_paths = request_data.get("paths", [])
 
         if not folder_paths:
-            await websocket.send_json({
-                "type": "error",
-                "message": "No folder paths provided"
-            })
+            await websocket.send_json({"type": "error", "message": "No folder paths provided"})
             await websocket.close()
             return
 
         # Add folders to tracking
         with db.get_connection() as conn:
             for path in folder_paths:
-                conn.execute(
-                    "INSERT OR IGNORE INTO folders (path, status) VALUES (?, ?)",
-                    (path, "pending")
-                )
+                conn.execute("INSERT OR IGNORE INTO folders (path, status) VALUES (?, ?)", (path, "pending"))
             conn.commit()
 
         # Define progress callback
         async def send_progress(phase: str, progress: int, message: str):
             try:
-                await websocket.send_json({
-                    "type": "progress",
-                    "phase": phase,
-                    "progress": progress,
-                    "message": message
-                })
+                await websocket.send_json(
+                    {"type": "progress", "phase": phase, "progress": progress, "message": message}
+                )
             except Exception as e:
                 print(f"Error sending progress: {e}")
 
@@ -158,16 +143,10 @@ async def websocket_scan_endpoint(websocket: WebSocket):
         loop = asyncio.get_event_loop()
 
         def progress_callback(phase, progress, message):
-            asyncio.run_coroutine_threadsafe(
-                send_progress(phase, progress, message),
-                loop
-            )
+            asyncio.run_coroutine_threadsafe(send_progress(phase, progress, message), loop)
 
         # Run scan
-        await loop.run_in_executor(
-            None,
-            lambda: scan_folders_with_progress(folder_paths, progress_callback)
-        )
+        await loop.run_in_executor(None, lambda: scan_folders_with_progress(folder_paths, progress_callback))
 
         # Get updated stats from database
         with db.get_connection() as conn:
@@ -184,31 +163,27 @@ async def websocket_scan_endpoint(websocket: WebSocket):
             folder_count = conn.execute("SELECT COUNT(*) as count FROM folders").fetchone()["count"]
 
         # Send stats update message
-        await websocket.send_json({
-            "type": "stats_update",
-            "stats": {
-                "samples": sample_count,
-                "tags": tag_count,
-                "collections": collection_count,
-                "folders": folder_count
+        await websocket.send_json(
+            {
+                "type": "stats_update",
+                "stats": {
+                    "samples": sample_count,
+                    "tags": tag_count,
+                    "collections": collection_count,
+                    "folders": folder_count,
+                },
             }
-        })
+        )
 
         # Send completion message
-        await websocket.send_json({
-            "type": "complete",
-            "message": "Scan completed successfully"
-        })
+        await websocket.send_json({"type": "complete", "message": "Scan completed successfully"})
 
     except WebSocketDisconnect:
         print("Client disconnected")
     except Exception as e:
         print(f"WebSocket error: {e}")
         try:
-            await websocket.send_json({
-                "type": "error",
-                "message": str(e)
-            })
+            await websocket.send_json({"type": "error", "message": str(e)})
         except:
             pass
     finally:

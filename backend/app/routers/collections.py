@@ -1,7 +1,9 @@
 """Collection management API endpoints"""
+
+from typing import List, Optional
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import List, Optional
 
 from app.database import db
 
@@ -26,9 +28,7 @@ class ReorderRequest(BaseModel):
 async def list_collections():
     """List all collections"""
     with db.get_connection() as conn:
-        cursor = conn.execute(
-            "SELECT * FROM collections ORDER BY updated_at DESC"
-        )
+        cursor = conn.execute("SELECT * FROM collections ORDER BY updated_at DESC")
         collections = [dict(row) for row in cursor.fetchall()]
         return {"collections": collections}
 
@@ -38,8 +38,7 @@ async def create_collection(collection: Collection):
     """Create a new collection"""
     with db.get_connection() as conn:
         cursor = conn.execute(
-            "INSERT INTO collections (name, description) VALUES (?, ?)",
-            (collection.name, collection.description)
+            "INSERT INTO collections (name, description) VALUES (?, ?)", (collection.name, collection.description)
         )
         conn.commit()
         return {"id": cursor.lastrowid, **collection.dict()}
@@ -50,21 +49,22 @@ async def get_collection(collection_id: int):
     """Get collection details with samples"""
     with db.get_connection() as conn:
         # Get collection
-        collection = conn.execute(
-            "SELECT * FROM collections WHERE id = ?", (collection_id,)
-        ).fetchone()
+        collection = conn.execute("SELECT * FROM collections WHERE id = ?", (collection_id,)).fetchone()
 
         if not collection:
             raise HTTPException(status_code=404, detail="Collection not found")
 
         # Get samples in collection
-        samples = conn.execute("""
+        samples = conn.execute(
+            """
             SELECT s.*, ci.order_index
             FROM samples s
             JOIN collection_items ci ON s.id = ci.sample_id
             WHERE ci.collection_id = ?
             ORDER BY ci.order_index
-        """, (collection_id,)).fetchall()
+        """,
+            (collection_id,),
+        ).fetchall()
 
         result = dict(collection)
         result["samples"] = [dict(sample) for sample in samples]
@@ -78,7 +78,7 @@ async def update_collection(collection_id: int, collection: Collection):
     with db.get_connection() as conn:
         cursor = conn.execute(
             "UPDATE collections SET name = ?, description = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-            (collection.name, collection.description, collection_id)
+            (collection.name, collection.description, collection_id),
         )
         conn.commit()
 
@@ -106,16 +106,13 @@ async def add_item_to_collection(collection_id: int, request: AddItemRequest):
     """Add sample to collection"""
     with db.get_connection() as conn:
         # Verify collection exists
-        collection = conn.execute(
-            "SELECT id FROM collections WHERE id = ?", (collection_id,)
-        ).fetchone()
+        collection = conn.execute("SELECT id FROM collections WHERE id = ?", (collection_id,)).fetchone()
         if not collection:
             raise HTTPException(status_code=404, detail="Collection not found")
 
         # Get next order index
         max_order = conn.execute(
-            "SELECT MAX(order_index) as max_order FROM collection_items WHERE collection_id = ?",
-            (collection_id,)
+            "SELECT MAX(order_index) as max_order FROM collection_items WHERE collection_id = ?", (collection_id,)
         ).fetchone()["max_order"]
         next_order = (max_order or 0) + 1
 
@@ -123,7 +120,7 @@ async def add_item_to_collection(collection_id: int, request: AddItemRequest):
         try:
             conn.execute(
                 "INSERT INTO collection_items (collection_id, sample_id, order_index) VALUES (?, ?, ?)",
-                (collection_id, request.sample_id, next_order)
+                (collection_id, request.sample_id, next_order),
             )
             conn.commit()
             return {"status": "added", "collection_id": collection_id, "sample_id": request.sample_id}
@@ -138,8 +135,7 @@ async def remove_item_from_collection(collection_id: int, sample_id: int):
     """Remove sample from collection"""
     with db.get_connection() as conn:
         cursor = conn.execute(
-            "DELETE FROM collection_items WHERE collection_id = ? AND sample_id = ?",
-            (collection_id, sample_id)
+            "DELETE FROM collection_items WHERE collection_id = ? AND sample_id = ?", (collection_id, sample_id)
         )
         conn.commit()
 
@@ -157,7 +153,7 @@ async def reorder_collection_items(collection_id: int, request: ReorderRequest):
         for index, sample_id in enumerate(request.item_order):
             conn.execute(
                 "UPDATE collection_items SET order_index = ? WHERE collection_id = ? AND sample_id = ?",
-                (index, collection_id, sample_id)
+                (index, collection_id, sample_id),
             )
         conn.commit()
 

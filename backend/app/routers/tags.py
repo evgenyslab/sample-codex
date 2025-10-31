@@ -1,7 +1,9 @@
 """Tag management API endpoints"""
+
+from typing import List, Optional
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import List, Optional
 
 from app.database import db
 
@@ -24,9 +26,7 @@ class AddTagsRequest(BaseModel):
 async def list_tags():
     """List all tags"""
     with db.get_connection() as conn:
-        cursor = conn.execute(
-            "SELECT * FROM tags ORDER BY name"
-        )
+        cursor = conn.execute("SELECT * FROM tags ORDER BY name")
         tags = [dict(row) for row in cursor.fetchall()]
         return {"tags": tags}
 
@@ -38,7 +38,7 @@ async def create_tag(tag: Tag):
         try:
             cursor = conn.execute(
                 "INSERT INTO tags (name, color, auto_generated) VALUES (?, ?, ?)",
-                (tag.name, tag.color, tag.auto_generated)
+                (tag.name, tag.color, tag.auto_generated),
             )
             conn.commit()
             return {"id": cursor.lastrowid, **tag.dict()}
@@ -52,10 +52,7 @@ async def create_tag(tag: Tag):
 async def update_tag(tag_id: int, tag: Tag):
     """Update tag"""
     with db.get_connection() as conn:
-        cursor = conn.execute(
-            "UPDATE tags SET name = ?, color = ? WHERE id = ?",
-            (tag.name, tag.color, tag_id)
-        )
+        cursor = conn.execute("UPDATE tags SET name = ?, color = ? WHERE id = ?", (tag.name, tag.color, tag_id))
         conn.commit()
 
         if cursor.rowcount == 0:
@@ -91,7 +88,7 @@ async def add_tags_to_sample(sample_id: int, request: AddTagsRequest):
             try:
                 conn.execute(
                     "INSERT OR IGNORE INTO sample_tags (sample_id, tag_id, confidence) VALUES (?, ?, ?)",
-                    (sample_id, tag_id, request.confidence)
+                    (sample_id, tag_id, request.confidence),
                 )
             except Exception as e:
                 raise HTTPException(status_code=400, detail=f"Error adding tag {tag_id}: {str(e)}")
@@ -104,10 +101,7 @@ async def add_tags_to_sample(sample_id: int, request: AddTagsRequest):
 async def remove_tag_from_sample(sample_id: int, tag_id: int):
     """Remove tag from sample"""
     with db.get_connection() as conn:
-        cursor = conn.execute(
-            "DELETE FROM sample_tags WHERE sample_id = ? AND tag_id = ?",
-            (sample_id, tag_id)
-        )
+        cursor = conn.execute("DELETE FROM sample_tags WHERE sample_id = ? AND tag_id = ?", (sample_id, tag_id))
         conn.commit()
 
         if cursor.rowcount == 0:

@@ -1,8 +1,8 @@
 """Database initialization and connection management"""
+
+import logging
 import sqlite3
 from pathlib import Path
-from typing import Optional
-import logging
 
 from app.config import DATABASE_PATH
 
@@ -39,15 +39,15 @@ class Database:
             columns = [row[1] for row in cursor.fetchall()]
 
             # Add missing columns
-            if 'title' not in columns:
+            if "title" not in columns:
                 conn.execute("ALTER TABLE samples ADD COLUMN title TEXT")
                 logger.info("Added 'title' column to samples table")
 
-            if 'artist' not in columns:
+            if "artist" not in columns:
                 conn.execute("ALTER TABLE samples ADD COLUMN artist TEXT")
                 logger.info("Added 'artist' column to samples table")
 
-            if 'album' not in columns:
+            if "album" not in columns:
                 conn.execute("ALTER TABLE samples ADD COLUMN album TEXT")
                 logger.info("Added 'album' column to samples table")
 

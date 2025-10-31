@@ -1,9 +1,11 @@
 """Search API endpoints"""
-from fastapi import APIRouter, HTTPException
-from typing import List, Optional
 
-from app.database import db
+from typing import Optional
+
+from fastapi import APIRouter
+
 from app.config import ITEMS_PER_PAGE
+from app.database import db
 
 router = APIRouter()
 
@@ -14,7 +16,7 @@ async def search_samples(
     tags: Optional[str] = None,  # Comma-separated tag IDs
     mode: str = "and",  # 'and' or 'or' for tag filtering
     page: int = 1,
-    limit: int = ITEMS_PER_PAGE
+    limit: int = ITEMS_PER_PAGE,
 ):
     """Search samples by text and/or tags"""
     offset = (page - 1) * limit
@@ -112,12 +114,8 @@ async def search_samples(
 
         return {
             "samples": samples,
-            "pagination": {
-                "page": page,
-                "limit": limit,
-                "total": total
-            },
+            "pagination": {"page": page, "limit": limit, "total": total},
             "query": q,
             "tags": tags,
-            "mode": mode
+            "mode": mode,
         }
