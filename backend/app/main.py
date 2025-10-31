@@ -86,16 +86,38 @@ async def clear_all_data():
 
 # Serve frontend static files in production
 if FRONTEND_BUILD_DIR.exists():
-    app.mount("/assets", StaticFiles(directory=FRONTEND_BUILD_DIR / "assets"), name="assets")
+    # Mount static assets directory
+    assets_dir = FRONTEND_BUILD_DIR / "assets"
+    if assets_dir.exists():
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+        logger.info(f"Serving static assets from: {assets_dir}")
+
+    @app.get("/")
+    async def serve_root():
+        """Serve the frontend root page"""
+        index_path = FRONTEND_BUILD_DIR / "index.html"
+        if index_path.exists():
+            return FileResponse(index_path)
+        return {"message": "Frontend not found"}
 
     @app.get("/{full_path:path}")
     async def serve_frontend(full_path: str):
-        """Serve frontend application"""
-        # Serve index.html for all non-API routes
-        if not full_path.startswith("api/"):
-            index_path = FRONTEND_BUILD_DIR / "index.html"
-            if index_path.exists():
-                return FileResponse(index_path)
+        """Serve frontend application for all non-API routes (SPA support)"""
+        # Skip API routes
+        if full_path.startswith("api/"):
+            return {"error": "Not found"}
+
+        # Try to serve the requested file first
+        file_path = FRONTEND_BUILD_DIR / full_path
+        if file_path.exists() and file_path.is_file():
+            return FileResponse(file_path)
+
+        # Fallback to index.html for SPA routing
+        index_path = FRONTEND_BUILD_DIR / "index.html"
+        if index_path.exists():
+            return FileResponse(index_path)
+
         return {"message": "Frontend not built"}
 else:
     logger.warning("Frontend build directory not found. Run 'npm run build' in frontend directory.")
+    logger.info("To build frontend: cd frontend && npm run build")

@@ -1,7 +1,7 @@
 # TODO's
 
 - Implement Browser page
-    - Broswer component needs to be two panes, left pane (narrow), right pane (wide)
+    - Browser component needs to be two panes, left pane (narrow), right pane (wide)
     - left pane maybe add toggle on/off function
     - left pane has search bar at top
     - left pane shows a list of all tags
@@ -24,3 +24,8 @@
 - BE needs unit tests for API
 - FE needs unit tests
 - FE Connected status should be continously checking BE... maybe via websocket
+- BE 
+    - create default tag ENUMs in db migration
+    - Add support for db migrations for different db versions
+    - add file SHA's to DB to avoid duplicates & allow re-discovery of files
+    - Semantic Tagging... maybe use gpt/claude call for this?

@@ -1,12 +1,21 @@
 import { ChevronUpIcon, CollectionIcon, DashboardIcon, FolderIcon, PlusIcon, SearchIcon, SettingsIcon, TagIcon } from './ui/Icons'
+import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-
-import { useState } from 'react'
 
 const Sidebar = ({ onAddFolders, onOpenSettings, stats, health }) => {
   const navigate = useNavigate()
   const location = useLocation()
-  const [isCollapsed, setIsCollapsed] = useState(false)
+
+  // Initialize from localStorage
+  const [isCollapsed, setIsCollapsed] = useState(() => {
+    const saved = localStorage.getItem('sidebar-collapsed')
+    return saved === 'true'
+  })
+
+  // Persist to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('sidebar-collapsed', isCollapsed.toString())
+  }, [isCollapsed])
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', Icon: DashboardIcon, path: '/dashboard' },
@@ -27,9 +36,8 @@ const Sidebar = ({ onAddFolders, onOpenSettings, stats, health }) => {
     <div className={`border-r bg-background h-screen flex flex-col ${isCollapsed ? 'w-16' : 'w-64'}`}>
       {/* Header */}
       <div className={`px-3 pt-6 pb-4 flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
-        <div className={`overflow-hidden transition-opacity duration-150 ${isCollapsed ? 'opacity-0 w-0' : 'flex-1 px-3 opacity-100'}`}>
-          <h2 className="text-lg font-semibold tracking-tight whitespace-nowrap">Audio Sample Manager</h2>
-          <p className="text-xs text-muted-foreground mt-1 whitespace-nowrap">Organize your sounds</p>
+        <div className={`overflow-hidden transition-opacity duration-150 ${isCollapsed ? 'opacity-0 w-0 display-none' : 'flex-1 px-3 opacity-100'}`}>
+          <h2 className="text-lg font-semibold tracking-tight whitespace-nowrap">Sampvr</h2>
         </div>
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}

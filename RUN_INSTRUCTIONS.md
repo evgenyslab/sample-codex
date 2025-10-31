@@ -87,9 +87,35 @@ The build output will be in `frontend/dist/`
 
 ## Running the Full Application
 
-### Development Mode (Recommended)
+### Quick Start (Unified Entry Point) ⭐
 
-Run both servers simultaneously in separate terminals:
+The easiest way to run the application is using the unified entry point:
+
+**Development Mode (Both Servers):**
+```bash
+python start.py
+```
+This starts both backend (http://127.0.0.1:8000) and frontend (http://localhost:5173) automatically.
+
+**Production Mode:**
+```bash
+python start.py --prod
+```
+This builds the frontend and serves everything from http://127.0.0.1:8000
+
+**Other Options:**
+```bash
+python start.py --backend   # Backend only
+python start.py --frontend  # Frontend only
+python start.py --build     # Build frontend
+./start.sh                  # Unix/Mac convenience script
+```
+
+See [STARTUP.md](STARTUP.md) for detailed documentation.
+
+### Alternative: Manual Setup
+
+If you prefer to run servers manually in separate terminals:
 
 **Terminal 1 - Backend:**
 ```bash
@@ -104,22 +130,6 @@ npm run dev
 ```
 
 Then open **http://localhost:5173** in your browser.
-
-### Production Mode
-
-1. Build the frontend:
-```bash
-cd frontend
-npm run build
-```
-
-2. Start the backend (which serves the frontend):
-```bash
-cd backend
-python run.py
-```
-
-Then open **http://localhost:8000** in your browser.
 
 ## API Endpoints
 
