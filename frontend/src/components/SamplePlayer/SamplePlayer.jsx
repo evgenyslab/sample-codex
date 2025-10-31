@@ -19,6 +19,7 @@ export default function SamplePlayer({ sample, isOpen, onClose }) {
   const [audioBlob, setAudioBlob] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [shouldAutoPlay, setShouldAutoPlay] = useState(false);
 
   const {
     isPlaying,
@@ -27,10 +28,19 @@ export default function SamplePlayer({ sample, isOpen, onClose }) {
     duration,
     audioBuffer,
     togglePlayPause,
+    play,
     stop,
     toggleLoop,
     seek,
   } = useAudioPlayback(audioBlob);
+
+  // Track when sample changes while playing - set autoplay flag
+  useEffect(() => {
+    if (sample && isOpen && isPlaying) {
+      console.log('Sample changed while playing - will auto-play next sample');
+      setShouldAutoPlay(true);
+    }
+  }, [sample?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load audio when sample changes
   useEffect(() => {
@@ -79,6 +89,15 @@ export default function SamplePlayer({ sample, isOpen, onClose }) {
 
     loadAudio();
   }, [sample, isOpen]);
+
+  // Auto-play when new audio buffer is ready if shouldAutoPlay is set
+  useEffect(() => {
+    if (shouldAutoPlay && audioBuffer && !isPlaying) {
+      console.log('Auto-playing new sample (seamless transition)');
+      play();
+      setShouldAutoPlay(false);
+    }
+  }, [audioBuffer, shouldAutoPlay, isPlaying, play]);
 
   // Keyboard shortcuts
   useEffect(() => {
