@@ -22,6 +22,7 @@ const SHORTCUTS: ShortcutSection[] = [
     shortcuts: [
       { keys: ['?'], description: 'Show keyboard shortcuts' },
       { keys: ['Esc'], description: 'Clear selection and close player' },
+      { keys: ['x'], description: 'Clear all filters', context: 'in browser view' },
     ],
   },
   {
@@ -43,8 +44,9 @@ const SHORTCUTS: ShortcutSection[] = [
   {
     title: 'Audio Player',
     shortcuts: [
-      { keys: ['Space'], description: 'Play/pause sample', context: 'when player is open' },
-      { keys: ['l'], description: 'Toggle loop mode', context: 'when player is open' },
+      { keys: ['Space'], description: 'Play/stop sample', context: 'when player is open' },
+      { keys: ['l'], description: 'Toggle loop mode' },
+      { keys: ['p'], description: 'Toggle auto-play mode' },
     ],
   },
   {

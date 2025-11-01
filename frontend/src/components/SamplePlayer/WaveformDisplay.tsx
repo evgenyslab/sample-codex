@@ -4,7 +4,6 @@ interface WaveformDisplayProps {
   audioBuffer: AudioBuffer | null;
   playbackPosition?: number;
   isPlaying?: boolean;
-  onSeek?: (position: number) => void;
 }
 
 interface WaveformData {
@@ -19,8 +18,7 @@ interface WaveformData {
 export default function WaveformDisplay({
   audioBuffer,
   playbackPosition = 0,
-  isPlaying = false,
-  onSeek
+  isPlaying = false
 }: WaveformDisplayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -111,24 +109,11 @@ export default function WaveformDisplay({
     return () => window.removeEventListener('resize', handleResize);
   }, [audioBuffer, playbackPosition]);
 
-  // Handle click to seek
-  const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!onSeek || !canvasRef.current) return;
-
-    const canvas = canvasRef.current;
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const position = x / rect.width;
-
-    onSeek(Math.max(0, Math.min(1, position)));
-  };
-
   return (
     <div ref={containerRef} className="waveform-container">
       <canvas
         ref={canvasRef}
-        onClick={handleCanvasClick}
-        className="waveform-canvas cursor-pointer"
+        className="waveform-canvas"
       />
     </div>
   );

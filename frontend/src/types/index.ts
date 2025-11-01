@@ -75,11 +75,8 @@ export interface AudioPlaybackState {
 
 export interface AudioPlaybackControls {
   play: () => Promise<void>;
-  pause: () => void;
   stop: () => void;
-  togglePlayPause: () => void;
   toggleLoop: () => void;
-  seek: (position: number) => void;
 }
 
 // Filter types

@@ -240,6 +240,11 @@ export default function useAudioPlayback(audioBlob: Blob | null): AudioPlaybackS
     } catch (e) {
       // Ignore if already stopped
     }
+    try {
+      sourceNodeRef.current.disconnect();
+    } catch (e) {
+      // Ignore if already disconnected
+    }
     sourceNodeRef.current = null;
     setIsPlaying(false);
   }, [duration]);
@@ -255,6 +260,12 @@ export default function useAudioPlayback(audioBlob: Blob | null): AudioPlaybackS
         sourceNodeRef.current.stop();
       } catch (e) {
         // Ignore if already stopped
+      }
+      // Disconnect to immediately cut off audio
+      try {
+        sourceNodeRef.current.disconnect();
+      } catch (e) {
+        // Ignore if already disconnected
       }
       sourceNodeRef.current = null;
     }
@@ -329,10 +340,7 @@ export default function useAudioPlayback(audioBlob: Blob | null): AudioPlaybackS
 
     // Controls
     play,
-    pause,
     stop,
-    togglePlayPause,
     toggleLoop,
-    seek,
   };
 }

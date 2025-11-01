@@ -1,5 +1,6 @@
-import { SearchIcon, TagIcon, CollectionIcon } from '../components/ui/Icons'
-import { getScannedFolders, healthCheck, listCollections, listSamples, listTags, bulkUpdateSampleTags, bulkUpdateSampleCollections } from '../services/api'
+import type { AppStats, Collection, Folder, HealthStatus, Sample, Tag } from '../types'
+import { CollectionIcon, SearchIcon, TagIcon } from '../components/ui/Icons'
+import { bulkUpdateSampleCollections, bulkUpdateSampleTags, getScannedFolders, healthCheck, listCollections, listSamples, listTags } from '../services/api'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import CollectionPopup from '../components/CollectionPopup/CollectionPopup.tsx'
@@ -10,10 +11,9 @@ import SamplePlayer from '../components/SamplePlayer/SamplePlayer'
 import SettingsModal from '../components/SettingsModal.tsx'
 import Sidebar from '../components/Sidebar'
 import TagPopup from '../components/TagPopup/TagPopup.tsx'
+import { useAudioPlayer } from '../contexts/AudioPlayerContext'
 import { useQuery } from '@tanstack/react-query'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { useAudioPlayer } from '../contexts/AudioPlayerContext'
-import type { Tag, Collection, Folder, Sample, HealthStatus, AppStats } from '../types'
 
 interface TagsResponse {
   tags: Tag[]
@@ -47,7 +47,7 @@ interface TagSaveParams {
 
 export default function Browser() {
   // Get global audio player context
-  const { selectedSample, setSelectedSample, toggleLoop } = useAudioPlayer()
+  const { selectedSample, setSelectedSample } = useAudioPlayer()
 
   const [isFolderBrowserOpen, setIsFolderBrowserOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
@@ -57,8 +57,6 @@ export default function Browser() {
 
   // Player is open when a sample is selected
   const isPlayerOpen = selectedSample !== null
-
-  const samplePlayerRef = useRef<{ toggleLoop: () => void } | null>(null)
 
   // Persist pane visibility state
   const [isLeftPaneVisible, setIsLeftPaneVisible] = useState(() => {
@@ -440,6 +438,14 @@ export default function Browser() {
         // Clear multi-select and single select, close player
         setSelectedSamples(new Set())
         setSelectedSample(null)
+      } else if (e.key === 'x') {
+        // Clear all filters (tags, collections, folders)
+        e.preventDefault()
+        setIncludedTags([])
+        setExcludedTags([])
+        setIncludedCollections([])
+        setExcludedCollections([])
+        setIncludedFolders([])
       } else if (e.key === 'a' && (e.metaKey || e.ctrlKey)) {
         // Select all samples (Cmd+A / Ctrl+A)
         e.preventDefault()
@@ -468,11 +474,11 @@ export default function Browser() {
         if (nextSample) {
           setSelectedSample(nextSample)
           setSelectedSamples(new Set()) // Clear multi-select
+
+          // Scroll the virtualizer to keep the selected item in view
+          // Use 'center' for better UX - keeps the item in the middle of the viewport
+          rowVirtualizer.scrollToIndex(nextIndex, { align: 'center' })
         }
-      } else if (e.key === 'l' && selectedSample && isPlayerOpen) {
-        // Toggle loop mode (only when player is open)
-        e.preventDefault()
-        toggleLoop()
       } else if (e.key === 'f' && selectedSample) {
         // Reveal folder location in folder pane
         e.preventDefault()
@@ -533,7 +539,7 @@ export default function Browser() {
         health={health as any}
       />
 
-      <div className="flex-1 flex gap-2 p-4 overflow-hidden">
+      <div className="flex-1 flex gap-2 p-4 overflow-hidden relative">
         {/* Left Pane - Tags Filter */}
         <FilterPane
           items={usedTags}
@@ -770,9 +776,7 @@ export default function Browser() {
             </div>
           </div>
 
-          {/* Sample Player - positioned at bottom of browser pane */}
           <SamplePlayer
-            ref={samplePlayerRef}
             sample={selectedSample}
             isOpen={isPlayerOpen}
             onClose={() => setSelectedSample(null)}
