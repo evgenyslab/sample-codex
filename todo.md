@@ -1,36 +1,16 @@
 # TODO's
 
-- add folder browser page like tag browser
-    - needs to show root common folder
-- add collection browser page like tag browser
-- default sidebar collapsed
-- default view to browser
-- default tag browser collapsed (persist state)
 
-- Implement Browser page
-    - Browser component needs to be two panes, left pane (narrow), right pane (wide)
-    - left pane maybe add toggle on/off function
-    - left pane has search bar at top
-    - left pane shows a list of all tags
-    - search bar narrows down tag list
-    - clicking on tag applies filtering on browser samples with this tag and highlights its text 
-    - left-clicking on tag highlights tag and adds an 'x' to the right of it, and uses an exclude filter on the samples
-    - right panel has top-row search bar which will filter matches based on whats typed in
-    - under the search bar is a virtualized table of all the samples, with columns 'name', 'duration', 'channels'
-    - left and right panes should be separated by thin line, outline of left and right panes should have rounded corners, the hight of left and right pane can go below the display view
-- Browser sample preview panel needed, need to show up at the bottom of the page, plot the sample wave form
 - sample player component
+    - improve AUDIO playback stability!
     - start | end bars
     - toggle play direction
     - play speed slider
     - pitch slider or semitone toggle
 - Allow loading db from different file from FE
-- Update db size estimate in FE
 - BE needs unit tests for API
 - FE needs unit tests
-- FE Connected status should be continously checking BE... maybe via websocket
 - BE 
-    - create default tag ENUMs in db migration
     - Add support for db migrations for different db versions
     - add file SHA's to DB to avoid duplicates & allow re-discovery of files
     - Semantic Tagging... maybe use gpt/claude call for this?

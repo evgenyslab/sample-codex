@@ -8,8 +8,8 @@ const Sidebar = ({ onAddFolders, onOpenSettings, stats, health }) => {
 
   // Initialize from localStorage
   const [isCollapsed, setIsCollapsed] = useState(() => {
-    const saved = localStorage.getItem('sidebar-collapsed')
-    return saved === 'true'
+    const stored_collapsed = localStorage.getItem('sidebar-collapsed')
+    return stored_collapsed === 'true'
   })
 
   // Persist to localStorage whenever it changes
