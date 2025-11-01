@@ -5,12 +5,12 @@
  * across component re-renders, system sleep/wake, and tab visibility changes.
  */
 
-let globalAudioContext = null;
+let globalAudioContext: AudioContext | null = null;
 let isRecovering = false;
 
-export const getAudioContext = () => {
+export const getAudioContext = (): AudioContext => {
   if (!globalAudioContext || globalAudioContext.state === 'closed') {
-    globalAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+    globalAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
     console.log('🔊 Global AudioContext created:', {
       state: globalAudioContext.state,
       sampleRate: globalAudioContext.sampleRate,
@@ -26,7 +26,7 @@ export const getAudioContext = () => {
   return globalAudioContext;
 };
 
-export const resumeAudioContext = async () => {
+export const resumeAudioContext = async (): Promise<AudioContext> => {
   const ctx = getAudioContext();
   if (ctx.state === 'suspended') {
     console.log('Resuming suspended audio context...');
@@ -39,7 +39,7 @@ export const resumeAudioContext = async () => {
 /**
  * Force recreate the AudioContext (for stuck states)
  */
-export const resetAudioContext = () => {
+export const resetAudioContext = (): AudioContext => {
   console.warn('🔄 Resetting AudioContext...');
 
   if (globalAudioContext) {
@@ -62,7 +62,7 @@ export const resetAudioContext = () => {
 /**
  * Set up listeners for system sleep/wake and visibility changes
  */
-function setupRecoveryListeners() {
+function setupRecoveryListeners(): void {
   if (typeof window === 'undefined') return;
 
   // Handle page visibility changes (tab switching, system wake)
@@ -99,7 +99,7 @@ function setupRecoveryListeners() {
 
     // Small delay to let system audio catch up
     setTimeout(async () => {
-      if (globalAudioContext.state === 'suspended') {
+      if (globalAudioContext && globalAudioContext.state === 'suspended') {
         console.log('🔄 Window focused, resuming AudioContext...');
         try {
           await globalAudioContext.resume();

@@ -1,5 +1,8 @@
 # TODO's
 
+- key to clear all selections 
+- when using key up down nav, the browser needs to shift view
+- the collapsed num samples display logic is weak
 
 - sample player component
     - improve AUDIO playback stability!

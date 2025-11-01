@@ -1,36 +1,51 @@
-import { ChevronUpIcon, CollectionIcon, DashboardIcon, FolderIcon, PlusIcon, SearchIcon, SettingsIcon, TagIcon } from './ui/Icons'
-import { useEffect, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { ChevronUpIcon, CollectionIcon, DashboardIcon, FolderIcon, PlusIcon, SearchIcon, SettingsIcon, TagIcon } from './ui/Icons';
+import { useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import type { HealthStatus, AppStats } from '../types';
 
-const Sidebar = ({ onAddFolders, onOpenSettings, stats, health }) => {
-  const navigate = useNavigate()
-  const location = useLocation()
+interface SidebarProps {
+  onAddFolders: () => void;
+  onOpenSettings: () => void;
+  stats: AppStats | null;
+  health: HealthStatus | null;
+}
+
+interface MenuItem {
+  id: string;
+  label: string;
+  Icon: React.ComponentType<{ className?: string }>;
+  path: string;
+}
+
+const Sidebar = ({ onAddFolders, onOpenSettings, stats, health }: SidebarProps) => {
+  const navigate = useNavigate();
+  const location = useLocation();
 
   // Initialize from localStorage
   const [isCollapsed, setIsCollapsed] = useState(() => {
-    const stored_collapsed = localStorage.getItem('sidebar-collapsed')
-    return stored_collapsed === 'true'
-  })
+    const stored_collapsed = localStorage.getItem('sidebar-collapsed');
+    return stored_collapsed === 'true';
+  });
 
   // Persist to localStorage whenever it changes
   useEffect(() => {
-    localStorage.setItem('sidebar-collapsed', isCollapsed.toString())
-  }, [isCollapsed])
+    localStorage.setItem('sidebar-collapsed', isCollapsed.toString());
+  }, [isCollapsed]);
 
-  const menuItems = [
+  const menuItems: MenuItem[] = [
     { id: 'dashboard', label: 'Dashboard', Icon: DashboardIcon, path: '/dashboard' },
     { id: 'browser', label: 'Browser', Icon: FolderIcon, path: '/browser' },
     { id: 'tags', label: 'Tags', Icon: TagIcon, path: '/tags' },
     { id: 'collections', label: 'Collections', Icon: CollectionIcon, path: '/collections' },
     { id: 'search', label: 'Search', Icon: SearchIcon, path: '/search' },
-  ]
+  ];
 
-  const isActive = (path) => location.pathname === path
+  const isActive = (path: string) => location.pathname === path;
 
-  const formatCompactNumber = (num) => {
-    if (num >= 1000) return '>1k'
-    return num.toString().padStart(3, ' ')
-  }
+  const formatCompactNumber = (num: number) => {
+    if (num >= 1000) return '>1k';
+    return num.toString().padStart(3, ' ');
+  };
 
   return (
     <div className={`border-r bg-background h-screen flex flex-col ${isCollapsed ? 'w-16' : 'w-64'}`}>
@@ -65,7 +80,7 @@ const Sidebar = ({ onAddFolders, onOpenSettings, stats, health }) => {
       {/* Navigation */}
       <nav className="flex-1 px-3 space-y-1">
         {menuItems.map((item) => {
-          const Icon = item.Icon
+          const Icon = item.Icon;
           return (
             <button
               key={item.id}
@@ -82,7 +97,7 @@ const Sidebar = ({ onAddFolders, onOpenSettings, stats, health }) => {
               <Icon className="w-4 h-4 flex-shrink-0" />
               <span className={`overflow-hidden transition-opacity duration-150 whitespace-nowrap ${isCollapsed ? 'opacity-0 w-0' : 'opacity-100'}`}>{item.label}</span>
             </button>
-          )
+          );
         })}
       </nav>
 
@@ -142,7 +157,7 @@ const Sidebar = ({ onAddFolders, onOpenSettings, stats, health }) => {
         </div>
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default Sidebar
+export default Sidebar;

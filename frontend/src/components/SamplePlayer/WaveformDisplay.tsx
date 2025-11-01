@@ -1,20 +1,30 @@
 import { useEffect, useRef } from 'react';
 
+interface WaveformDisplayProps {
+  audioBuffer: AudioBuffer | null;
+  playbackPosition?: number;
+  isPlaying?: boolean;
+  onSeek?: (position: number) => void;
+}
+
+interface WaveformData {
+  max: number;
+}
+
 /**
  * WaveformDisplay Component
  *
  * Renders an audio waveform on a canvas with a playback position indicator
- *
- * @param {Object} props
- * @param {ArrayBuffer} props.audioBuffer - Web Audio API AudioBuffer
- * @param {number} props.playbackPosition - Current playback position (0-1)
- * @param {boolean} props.isPlaying - Whether audio is currently playing
- * @param {Function} props.onSeek - Callback when user clicks to seek (position 0-1)
  */
-export default function WaveformDisplay({ audioBuffer, playbackPosition = 0, isPlaying = false, onSeek }) {
-  const canvasRef = useRef(null);
-  const containerRef = useRef(null);
-  const waveformDataRef = useRef(null);
+export default function WaveformDisplay({
+  audioBuffer,
+  playbackPosition = 0,
+  isPlaying = false,
+  onSeek
+}: WaveformDisplayProps) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const waveformDataRef = useRef<WaveformData[] | null>(null);
 
   // Generate waveform data from audio buffer
   useEffect(() => {
@@ -22,6 +32,8 @@ export default function WaveformDisplay({ audioBuffer, playbackPosition = 0, isP
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
     const width = canvas.width;
     const height = canvas.height;
 
@@ -29,7 +41,7 @@ export default function WaveformDisplay({ audioBuffer, playbackPosition = 0, isP
     const rawData = audioBuffer.getChannelData(0); // Use first channel
     const samples = width; // One sample per pixel width
     const blockSize = Math.floor(rawData.length / samples);
-    const waveformData = [];
+    const waveformData: WaveformData[] = [];
 
     // Downsample audio data to fit canvas width
     for (let i = 0; i < samples; i++) {
@@ -37,7 +49,7 @@ export default function WaveformDisplay({ audioBuffer, playbackPosition = 0, isP
       let max = 0;
 
       for (let j = 0; j < blockSize; j++) {
-        const val = Math.abs(rawData[start + j]);
+        const val = Math.abs(rawData[start + j] || 0);
         max = Math.max(max, val);
       }
 
@@ -57,6 +69,8 @@ export default function WaveformDisplay({ audioBuffer, playbackPosition = 0, isP
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
     const width = canvas.width;
     const height = canvas.height;
 
@@ -82,10 +96,12 @@ export default function WaveformDisplay({ audioBuffer, playbackPosition = 0, isP
 
       // Scale context to match
       const ctx = canvas.getContext('2d');
-      ctx.scale(dpr, dpr);
+      if (ctx) {
+        ctx.scale(dpr, dpr);
+      }
 
       // Trigger redraw
-      if (audioBuffer && waveformDataRef.current) {
+      if (audioBuffer && waveformDataRef.current && ctx) {
         drawWaveform(ctx, waveformDataRef.current, canvas.width, canvas.height, playbackPosition);
       }
     };
@@ -96,7 +112,7 @@ export default function WaveformDisplay({ audioBuffer, playbackPosition = 0, isP
   }, [audioBuffer, playbackPosition]);
 
   // Handle click to seek
-  const handleCanvasClick = (e) => {
+  const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!onSeek || !canvasRef.current) return;
 
     const canvas = canvasRef.current;
@@ -121,7 +137,13 @@ export default function WaveformDisplay({ audioBuffer, playbackPosition = 0, isP
 /**
  * Draw waveform on canvas
  */
-function drawWaveform(ctx, waveformData, width, height, playbackPosition) {
+function drawWaveform(
+  ctx: CanvasRenderingContext2D,
+  waveformData: WaveformData[],
+  width: number,
+  height: number,
+  playbackPosition: number
+) {
   const dpr = window.devicePixelRatio || 1;
   const displayWidth = width / dpr;
   const displayHeight = height / dpr;
@@ -137,7 +159,9 @@ function drawWaveform(ctx, waveformData, width, height, playbackPosition) {
 
   for (let i = 0; i < waveformData.length; i++) {
     const x = i * barWidth;
-    const { max } = waveformData[i];
+    const data = waveformData[i];
+    if (!data) continue;
+    const { max } = data;
 
     // Use max for height
     const barHeight = max * middleY * 0.9;

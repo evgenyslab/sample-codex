@@ -1,26 +1,27 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getAudioContext, resetAudioContext } from '../utils/audioContext';
+import type { AudioPlaybackState, AudioPlaybackControls } from '../types';
 
 /**
  * Audio playback hook
  *
  * Manages audio playback state and controls using Web Audio API
  *
- * @param {Blob|null} audioBlob - The audio blob to play
- * @returns {Object} Playback state and controls
+ * @param audioBlob - The audio blob to play
+ * @returns Playback state and controls
  */
-export default function useAudioPlayback(audioBlob) {
+export default function useAudioPlayback(audioBlob: Blob | null): AudioPlaybackState & AudioPlaybackControls {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLooping, setIsLooping] = useState(false);
   const [playbackPosition, setPlaybackPosition] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [audioBuffer, setAudioBuffer] = useState(null);
+  const [audioBuffer, setAudioBuffer] = useState<AudioBuffer | null>(null);
 
-  const sourceNodeRef = useRef(null);
-  const gainNodeRef = useRef(null);
+  const sourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
+  const gainNodeRef = useRef<GainNode | null>(null);
   const startTimeRef = useRef(0);
   const pauseTimeRef = useRef(0);
-  const animationFrameRef = useRef(null);
+  const animationFrameRef = useRef<number | null>(null);
 
   // Load audio blob and decode
   useEffect(() => {
@@ -295,7 +296,7 @@ export default function useAudioPlayback(audioBlob) {
    * Seek to position (0-1)
    */
   const seek = useCallback(
-    (position) => {
+    (position: number) => {
       if (!duration) return;
 
       const wasPlaying = isPlaying;

@@ -1,49 +1,59 @@
-import { useEffect, useRef, useCallback } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
-import toast from 'react-hot-toast'
+import { useEffect, useRef, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
+import type { WebSocketMessage } from '../types';
+
+interface PaginatedSamplesData {
+  pagination?: {
+    total: number;
+    page: number;
+    page_size: number;
+  };
+  samples?: unknown[];
+}
 
 export function useScanProgress() {
-  const wsRef = useRef(null)
-  const toastIdRef = useRef(null)
-  const queryClient = useQueryClient()
+  const wsRef = useRef<WebSocket | null>(null);
+  const toastIdRef = useRef<string | null>(null);
+  const queryClient = useQueryClient();
 
-  const startScan = useCallback((folderPaths) => {
+  const startScan = useCallback((folderPaths: string[]) => {
     // Close existing connection if any
     if (wsRef.current) {
-      wsRef.current.close()
+      wsRef.current.close();
     }
 
     // Determine WebSocket URL
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsHost = import.meta.env.VITE_API_URL
       ? new URL(import.meta.env.VITE_API_URL).host
-      : 'localhost:8000'
+      : 'localhost:8000';
 
-    const wsUrl = `${wsProtocol}//${wsHost}/api/folders/ws/scan`
+    const wsUrl = `${wsProtocol}//${wsHost}/api/folders/ws/scan`;
 
     // Create WebSocket connection
-    const ws = new WebSocket(wsUrl)
-    wsRef.current = ws
+    const ws = new WebSocket(wsUrl);
+    wsRef.current = ws;
 
     ws.onopen = () => {
-      console.log('WebSocket connected')
+      console.log('WebSocket connected');
       // Send scan request
-      ws.send(JSON.stringify({ paths: folderPaths }))
+      ws.send(JSON.stringify({ paths: folderPaths }));
 
       // Show initial toast
       toastIdRef.current = toast.loading('Starting scan...', {
         duration: Infinity,
         position: 'bottom-right',
-      })
-    }
+      });
+    };
 
-    ws.onmessage = (event) => {
+    ws.onmessage = (event: MessageEvent) => {
       try {
-        const data = JSON.parse(event.data)
+        const data = JSON.parse(event.data) as WebSocketMessage;
 
         if (data.type === 'progress') {
-          const { phase, progress, message } = data
-          const phaseLabel = phase === 'scanning' ? 'Scanning' : 'Processing'
+          const { phase, progress, message } = data;
+          const phaseLabel = phase === 'scanning' ? 'Scanning' : 'Processing';
 
           // Update toast with progress
           toast.loading(
@@ -58,16 +68,16 @@ export function useScanProgress() {
               </div>
             </div>,
             {
-              id: toastIdRef.current,
+              id: toastIdRef.current || undefined,
               duration: Infinity,
               position: 'bottom-right',
             }
-          )
+          );
         } else if (data.type === 'stats_update') {
           // Update stats in React Query cache
           if (data.stats) {
             // Update samples query
-            queryClient.setQueryData(['samples'], (oldData) => {
+            queryClient.setQueryData<PaginatedSamplesData>(['samples'], (oldData) => {
               if (oldData?.pagination) {
                 return {
                   ...oldData,
@@ -75,77 +85,77 @@ export function useScanProgress() {
                     ...oldData.pagination,
                     total: data.stats.samples
                   }
-                }
+                };
               }
-              return oldData
-            })
+              return oldData;
+            });
 
             // Update tags query
-            queryClient.invalidateQueries(['tags'])
+            queryClient.invalidateQueries({ queryKey: ['tags'] });
 
             // Update collections query
-            queryClient.invalidateQueries(['collections'])
+            queryClient.invalidateQueries({ queryKey: ['collections'] });
 
             // Update folders query
-            queryClient.invalidateQueries(['folders'])
+            queryClient.invalidateQueries({ queryKey: ['folders'] });
           }
         } else if (data.type === 'complete') {
           // Show success toast
           toast.success(data.message, {
-            id: toastIdRef.current,
+            id: toastIdRef.current || undefined,
             duration: 3000,
             position: 'bottom-right',
-          })
+          });
 
           // Close WebSocket
-          ws.close()
-          wsRef.current = null
+          ws.close();
+          wsRef.current = null;
         } else if (data.type === 'error') {
           // Show error toast
           toast.error(data.message, {
-            id: toastIdRef.current,
+            id: toastIdRef.current || undefined,
             duration: 5000,
             position: 'bottom-right',
-          })
+          });
 
           // Close WebSocket
-          ws.close()
-          wsRef.current = null
+          ws.close();
+          wsRef.current = null;
         }
       } catch (error) {
-        console.error('Error parsing WebSocket message:', error)
+        console.error('Error parsing WebSocket message:', error);
       }
-    }
+    };
 
-    ws.onerror = (error) => {
-      console.error('WebSocket error:', error)
+    ws.onerror = (error: Event) => {
+      console.error('WebSocket error:', error);
       toast.error('Connection error. Please try again.', {
-        id: toastIdRef.current,
+        id: toastIdRef.current || undefined,
         duration: 5000,
         position: 'bottom-right',
-      })
-    }
+      });
+    };
 
     ws.onclose = () => {
-      console.log('WebSocket closed')
-      wsRef.current = null
-    }
+      console.log('WebSocket closed');
+      wsRef.current = null;
+    };
 
     return () => {
       if (ws.readyState === WebSocket.OPEN) {
-        ws.close()
+        ws.close();
       }
-    }
-  }, [queryClient])
+    };
+  }, [queryClient]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (wsRef.current) {
-        wsRef.current.close()
+        wsRef.current.close();
       }
-    }
-  }, [])
+    };
+  }, []);
 
-  return { startScan }
+  return { startScan };
 }

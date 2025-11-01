@@ -1,4 +1,13 @@
-const Toggle = ({ pressed, onPressedChange, children, className = '', ...props }) => {
+import { ReactNode, ButtonHTMLAttributes } from 'react';
+
+interface ToggleProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'onClick'> {
+  pressed: boolean;
+  onPressedChange: (pressed: boolean) => void;
+  children: ReactNode;
+  className?: string;
+}
+
+const Toggle = ({ pressed, onPressedChange, children, className = '', ...props }: ToggleProps) => {
   return (
     <button
       type="button"
@@ -11,7 +20,7 @@ const Toggle = ({ pressed, onPressedChange, children, className = '', ...props }
     >
       {children}
     </button>
-  )
-}
+  );
+};
 
-export default Toggle
+export default Toggle;

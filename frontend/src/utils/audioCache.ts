@@ -7,20 +7,35 @@
 
 const DEFAULT_MAX_SIZE = 32 * 1024 * 1024; // 32MB default
 
-class AudioCache {
-  constructor(maxSizeBytes = DEFAULT_MAX_SIZE) {
+interface CacheEntry {
+  blob: Blob;
+  size: number;
+  lastAccessed: number;
+}
+
+interface CacheStats {
+  count: number;
+  size: number;
+  maxSize: number;
+}
+
+export class AudioCache {
+  public maxSize: number;
+  private currentSize: number;
+  private cache: Map<number | string, CacheEntry>;
+
+  constructor(maxSizeBytes: number = DEFAULT_MAX_SIZE) {
     this.maxSize = maxSizeBytes;
     this.currentSize = 0;
-    // Map: sampleId -> { blob, size, lastAccessed }
     this.cache = new Map();
   }
 
   /**
    * Get audio blob from cache
-   * @param {number|string} sampleId - The sample ID
-   * @returns {Blob|null} The cached blob or null if not found
+   * @param sampleId - The sample ID
+   * @returns The cached blob or null if not found
    */
-  get(sampleId) {
+  get(sampleId: number | string): Blob | null {
     const entry = this.cache.get(sampleId);
     if (!entry) {
       return null;
@@ -33,10 +48,10 @@ class AudioCache {
 
   /**
    * Store audio blob in cache
-   * @param {number|string} sampleId - The sample ID
-   * @param {Blob} blob - The audio blob to cache
+   * @param sampleId - The sample ID
+   * @param blob - The audio blob to cache
    */
-  set(sampleId, blob) {
+  set(sampleId: number | string, blob: Blob): void {
     const size = blob.size;
 
     // If the blob is larger than max cache size, don't cache it
@@ -48,7 +63,9 @@ class AudioCache {
     // Remove existing entry if present
     if (this.cache.has(sampleId)) {
       const oldEntry = this.cache.get(sampleId);
-      this.currentSize -= oldEntry.size;
+      if (oldEntry) {
+        this.currentSize -= oldEntry.size;
+      }
       this.cache.delete(sampleId);
     }
 
@@ -72,18 +89,18 @@ class AudioCache {
 
   /**
    * Check if sample is in cache
-   * @param {number|string} sampleId - The sample ID
-   * @returns {boolean}
+   * @param sampleId - The sample ID
+   * @returns Whether the sample is cached
    */
-  has(sampleId) {
+  has(sampleId: number | string): boolean {
     return this.cache.has(sampleId);
   }
 
   /**
    * Remove oldest (least recently accessed) entry from cache
    */
-  evictOldest() {
-    let oldestId = null;
+  private evictOldest(): void {
+    let oldestId: number | string | null = null;
     let oldestTime = Infinity;
 
     for (const [id, entry] of this.cache.entries()) {
@@ -95,11 +112,13 @@ class AudioCache {
 
     if (oldestId !== null) {
       const entry = this.cache.get(oldestId);
-      this.currentSize -= entry.size;
-      this.cache.delete(oldestId);
+      if (entry) {
+        this.currentSize -= entry.size;
+        this.cache.delete(oldestId);
 
-      if (import.meta.env.DEV) {
-        console.log(`Evicted audio ${oldestId} (${this.formatBytes(entry.size)})`);
+        if (import.meta.env.DEV) {
+          console.log(`Evicted audio ${oldestId} (${this.formatBytes(entry.size)})`);
+        }
       }
     }
   }
@@ -107,16 +126,15 @@ class AudioCache {
   /**
    * Clear all cached data
    */
-  clear() {
+  clear(): void {
     this.cache.clear();
     this.currentSize = 0;
   }
 
   /**
    * Get cache statistics
-   * @returns {{count: number, size: number, maxSize: number}}
    */
-  getStats() {
+  getStats(): CacheStats {
     return {
       count: this.cache.size,
       size: this.currentSize,
@@ -126,10 +144,10 @@ class AudioCache {
 
   /**
    * Format bytes to human-readable string
-   * @param {number} bytes
-   * @returns {string}
+   * @param bytes - Number of bytes
+   * @returns Formatted string
    */
-  formatBytes(bytes) {
+  private formatBytes(bytes: number): string {
     if (bytes === 0) return '0 B';
     const k = 1024;
     const sizes = ['B', 'KB', 'MB', 'GB'];
@@ -142,7 +160,7 @@ class AudioCache {
 export const audioCache = new AudioCache(DEFAULT_MAX_SIZE);
 
 // Allow configuration
-export const setMaxCacheSize = (sizeBytes) => {
+export const setMaxCacheSize = (sizeBytes: number): void => {
   audioCache.maxSize = sizeBytes;
 };
 
