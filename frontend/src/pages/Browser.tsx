@@ -12,6 +12,7 @@ import Sidebar from '../components/Sidebar'
 import TagPopup from '../components/TagPopup/TagPopup.tsx'
 import { useQuery } from '@tanstack/react-query'
 import { useVirtualizer } from '@tanstack/react-virtual'
+import { useAudioPlayer } from '../contexts/AudioPlayerContext'
 import type { Tag, Collection, Folder, Sample, HealthStatus, AppStats } from '../types'
 
 interface TagsResponse {
@@ -45,13 +46,17 @@ interface TagSaveParams {
 }
 
 export default function Browser() {
+  // Get global audio player context
+  const { selectedSample, setSelectedSample, toggleLoop } = useAudioPlayer()
+
   const [isFolderBrowserOpen, setIsFolderBrowserOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isTagPopupOpen, setIsTagPopupOpen] = useState(false)
   const [isCollectionPopupOpen, setIsCollectionPopupOpen] = useState(false)
-  const [selectedSample, setSelectedSample] = useState<Sample | null>(null)
-  const [isPlayerOpen, setIsPlayerOpen] = useState(false)
   const [selectedSamples, setSelectedSamples] = useState<Set<number>>(new Set())
+
+  // Player is open when a sample is selected
+  const isPlayerOpen = selectedSample !== null
 
   const samplePlayerRef = useRef<{ toggleLoop: () => void } | null>(null)
 
@@ -281,9 +286,8 @@ export default function Browser() {
   useEffect(() => {
     if (selectedSample && !samples.some(s => s.id === selectedSample.id)) {
       setSelectedSample(null)
-      setIsPlayerOpen(false)
     }
-  }, [samples, selectedSample])
+  }, [samples, selectedSample, setSelectedSample])
 
   // Virtualizer for sample table
   const rowVirtualizer = useVirtualizer({
@@ -436,14 +440,12 @@ export default function Browser() {
         // Clear multi-select and single select, close player
         setSelectedSamples(new Set())
         setSelectedSample(null)
-        setIsPlayerOpen(false)
       } else if (e.key === 'a' && (e.metaKey || e.ctrlKey)) {
         // Select all samples (Cmd+A / Ctrl+A)
         e.preventDefault()
         const allSampleIds = new Set(samples.map(s => s.id))
         setSelectedSamples(allSampleIds)
         // Close player when selecting multiple
-        setIsPlayerOpen(false)
         setSelectedSample(null)
       } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         // Navigate up/down through samples
@@ -465,13 +467,12 @@ export default function Browser() {
         const nextSample = samples[nextIndex]
         if (nextSample) {
           setSelectedSample(nextSample)
-          setIsPlayerOpen(true)
           setSelectedSamples(new Set()) // Clear multi-select
         }
       } else if (e.key === 'l' && selectedSample && isPlayerOpen) {
         // Toggle loop mode (only when player is open)
         e.preventDefault()
-        samplePlayerRef.current?.toggleLoop()
+        toggleLoop()
       } else if (e.key === 'f' && selectedSample) {
         // Reveal folder location in folder pane
         e.preventDefault()
@@ -710,7 +711,6 @@ export default function Browser() {
                           }
 
                           setSelectedSamples(rangeIds)
-                          setIsPlayerOpen(false)
                           setSelectedSample(null)
                         }
                         // Cmd/Ctrl+click for multi-select toggle
@@ -733,7 +733,6 @@ export default function Browser() {
                           setSelectedSamples(newSelected)
 
                           // Close player since we're now in multi-select mode
-                          setIsPlayerOpen(false)
                           setSelectedSample(null)
 
                           // Update last clicked index
@@ -741,7 +740,6 @@ export default function Browser() {
                         } else {
                           // Regular click - single select with player
                           setSelectedSample(sample)
-                          setIsPlayerOpen(true)
                           setSelectedSamples(new Set()) // Clear multi-select
 
                           // Update last clicked index
@@ -777,7 +775,7 @@ export default function Browser() {
             ref={samplePlayerRef}
             sample={selectedSample}
             isOpen={isPlayerOpen}
-            onClose={() => setIsPlayerOpen(false)}
+            onClose={() => setSelectedSample(null)}
           />
         </div>
       </div>

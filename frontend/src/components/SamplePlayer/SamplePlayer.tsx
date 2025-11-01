@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useImperativeHandle, forwardRef, Ref } from 'react';
-import { Play, Pause, Square, Repeat, X } from 'lucide-react';
+import { Play, Pause, Square, X } from 'lucide-react';
 import WaveformDisplay from './WaveformDisplay';
 import useAudioPlayback from '../../hooks/useAudioPlayback';
 import audioCache from '../../utils/audioCache';
+import { useAudioPlayer } from '../../contexts/AudioPlayerContext';
 import type { Sample } from '../../types';
 import './SamplePlayer.css';
 
@@ -28,6 +29,9 @@ const SamplePlayer = forwardRef<SamplePlayerRef, SamplePlayerProps>(
     const [error, setError] = useState<string | null>(null);
     const [shouldAutoPlay, setShouldAutoPlay] = useState(false);
 
+    // Get global audio player context
+    const { isLoopEnabled, setIsPlaying: setGlobalIsPlaying, toggleLoop: globalToggleLoop } = useAudioPlayer();
+
     const {
       isPlaying,
       isLooping,
@@ -37,13 +41,26 @@ const SamplePlayer = forwardRef<SamplePlayerRef, SamplePlayerProps>(
       togglePlayPause,
       play,
       stop,
-      toggleLoop,
+      toggleLoop: localToggleLoop,
       seek,
     } = useAudioPlayback(audioBlob);
 
-    // Expose toggleLoop to parent via ref
+    // Sync local playing state to global context
+    useEffect(() => {
+      setGlobalIsPlaying(isPlaying);
+    }, [isPlaying, setGlobalIsPlaying]);
+
+    // Sync global loop state to local player
+    useEffect(() => {
+      // Only update if different to avoid infinite loops
+      if (isLooping !== isLoopEnabled) {
+        localToggleLoop();
+      }
+    }, [isLoopEnabled]); // Intentionally omitting isLooping and localToggleLoop to avoid loops
+
+    // Expose toggleLoop to parent via ref - now calls global context
     useImperativeHandle(ref, () => ({
-      toggleLoop
+      toggleLoop: globalToggleLoop
     }));
 
     // Track when sample changes while playing - set autoplay flag
@@ -178,15 +195,6 @@ const SamplePlayer = forwardRef<SamplePlayerRef, SamplePlayerProps>(
               title="Stop and Reset to Beginning"
             >
               <Square size={18} />
-            </button>
-
-            <button
-              className={`control-button ${isLooping ? 'active' : ''}`}
-              onClick={toggleLoop}
-              disabled={isLoading || !audioBlob}
-              title="Toggle Loop"
-            >
-              <Repeat size={18} />
             </button>
 
             <div className="time-display">

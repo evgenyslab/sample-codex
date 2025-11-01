@@ -1,7 +1,10 @@
+import type { AppStats, HealthStatus } from '../types';
 import { ChevronUpIcon, CollectionIcon, DashboardIcon, FolderIcon, PlusIcon, SearchIcon, SettingsIcon, TagIcon } from './ui/Icons';
+import { FastForward, Play, Repeat, Square } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import type { HealthStatus, AppStats } from '../types';
+
+import { useAudioPlayer } from '../contexts/AudioPlayerContext';
 
 interface SidebarProps {
   onAddFolders: () => void;
@@ -20,6 +23,9 @@ interface MenuItem {
 const Sidebar = ({ onAddFolders, onOpenSettings, stats, health }: SidebarProps) => {
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Get audio player context
+  const { isPlaying, isLoopEnabled, isAutoPlayEnabled, toggleLoop, toggleAutoPlay } = useAudioPlayer();
 
   // Initialize from localStorage
   const [isCollapsed, setIsCollapsed] = useState(() => {
@@ -103,6 +109,53 @@ const Sidebar = ({ onAddFolders, onOpenSettings, stats, health }: SidebarProps) 
 
       {/* Stats Footer */}
       <div className="p-3 space-y-3">
+        {/* Audio Player Controls */}
+        <div className={`${isCollapsed ? 'space-y-2' : 'flex gap-2'}`}>
+          {/* Play/Stop Indicator (read-only) */}
+          <div
+            className={`px-3 py-2 rounded-md flex items-center text-sm font-medium ${
+              isCollapsed ? 'justify-center w-full' : 'flex-1 justify-center'
+            } ${
+              isPlaying
+                ? 'bg-green-500/20 text-green-600 dark:text-green-400'
+                : 'bg-red-500/20 text-red-600 dark:text-red-400'
+            }`}
+            title={isPlaying ? 'Playing' : 'Stopped'}
+          >
+            {isPlaying ? <Play size={16} className="fill-current" /> : <Square size={16} className="fill-current" />}
+          </div>
+
+          {/* Loop Toggle Button */}
+          <button
+            onClick={toggleLoop}
+            className={`px-3 py-2 rounded-md transition-colors flex items-center text-sm font-medium ${
+              isCollapsed ? 'justify-center w-full' : 'flex-1 justify-center'
+            } ${
+              isLoopEnabled
+                ? 'bg-purple-500 text-white hover:bg-purple-600'
+                : 'bg-muted text-muted-foreground hover:bg-accent'
+            }`}
+            title={isLoopEnabled ? 'Loop Enabled' : 'Loop Disabled'}
+          >
+            <Repeat size={16} />
+          </button>
+
+          {/* AutoPlay Toggle Button */}
+          <button
+            onClick={toggleAutoPlay}
+            className={`px-3 py-2 rounded-md transition-colors flex items-center text-sm font-medium ${
+              isCollapsed ? 'justify-center w-full' : 'flex-1 justify-center'
+            } ${
+              isAutoPlayEnabled
+                ? 'bg-yellow-500 text-white hover:bg-yellow-600'
+                : 'bg-muted text-muted-foreground hover:bg-accent'
+            }`}
+            title={isAutoPlayEnabled ? 'AutoPlay Enabled' : 'AutoPlay Disabled'}
+          >
+            <FastForward size={16} />
+          </button>
+        </div>
+
         {/* Settings Button */}
         <button
           onClick={onOpenSettings}
