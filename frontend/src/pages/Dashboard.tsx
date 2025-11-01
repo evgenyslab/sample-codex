@@ -1,12 +1,34 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card'
-import { CollectionIcon, FolderIcon, MusicIcon, PlusIcon, TagIcon } from '../components/ui/Icons'
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card'
+import { CollectionIcon, FolderIcon, MusicIcon, TagIcon } from '../components/ui/Icons'
 import { getScannedFolders, healthCheck, listCollections, listSamples, listTags } from '../services/api'
 
-import FolderBrowserModal from '../components/FolderBrowserModal'
-import SettingsModal from '../components/SettingsModal'
+import FolderBrowserModal from '../components/FolderBrowserModal.tsx'
+import SettingsModal from '../components/SettingsModal.tsx'
 import Sidebar from '../components/Sidebar'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
+import type { Tag, Collection, Folder, Sample, HealthStatus, AppStats } from '../types'
+
+interface TagsResponse {
+  tags: Tag[]
+}
+
+interface CollectionsResponse {
+  collections: Collection[]
+}
+
+interface FoldersResponse {
+  folders: Folder[]
+}
+
+interface SamplesResponse {
+  samples: Sample[]
+  pagination: {
+    total: number
+    page: number
+    page_size: number
+  }
+}
 
 export default function Dashboard() {
   const [isFolderBrowserOpen, setIsFolderBrowserOpen] = useState(false)
@@ -16,15 +38,15 @@ export default function Dashboard() {
     queryKey: ['health'],
     queryFn: async () => {
       const response = await healthCheck()
-      return response.data
+      return response.data as HealthStatus
     }
   })
 
   const { data: samplesData } = useQuery({
     queryKey: ['samples'],
     queryFn: async () => {
-      const response = await listSamples({ page: 1, limit: 10 })
-      return response.data
+      const response = await listSamples({ page: 1, page_size: 10 } as any)
+      return response.data as unknown as SamplesResponse
     }
   })
 
@@ -32,7 +54,7 @@ export default function Dashboard() {
     queryKey: ['tags'],
     queryFn: async () => {
       const response = await listTags()
-      return response.data
+      return response.data as unknown as TagsResponse
     }
   })
 
@@ -40,7 +62,7 @@ export default function Dashboard() {
     queryKey: ['folders'],
     queryFn: async () => {
       const response = await getScannedFolders()
-      return response.data
+      return response.data as unknown as FoldersResponse
     }
   })
 
@@ -48,11 +70,11 @@ export default function Dashboard() {
     queryKey: ['collections'],
     queryFn: async () => {
       const response = await listCollections()
-      return response.data
+      return response.data as unknown as CollectionsResponse
     }
   })
 
-  const stats = {
+  const stats: AppStats = {
     samples: samplesData?.pagination?.total || 0,
     tags: tagsData?.tags?.length || 0,
     folders: foldersData?.folders?.length || 0,
@@ -66,7 +88,7 @@ export default function Dashboard() {
         onAddFolders={() => setIsFolderBrowserOpen(true)}
         onOpenSettings={() => setIsSettingsOpen(true)}
         stats={stats}
-        health={health}
+        health={health as any}
       />
 
       {/* Main Content */}

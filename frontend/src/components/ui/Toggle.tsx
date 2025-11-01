@@ -3,7 +3,7 @@ import { ReactNode, ButtonHTMLAttributes } from 'react';
 interface ToggleProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'onClick'> {
   pressed: boolean;
   onPressedChange: (pressed: boolean) => void;
-  children: ReactNode;
+  children?: ReactNode;
   className?: string;
 }
 

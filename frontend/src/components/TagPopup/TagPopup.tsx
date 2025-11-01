@@ -1,7 +1,30 @@
 import { useState, useEffect, useMemo } from 'react';
 import { X, Plus } from 'lucide-react';
 import { createTag } from '../../services/api';
+import type { Tag, Sample } from '../../types';
 import './TagPopup.css';
+
+type TagState = 'checked' | 'unchecked' | 'indeterminate';
+
+interface TagStates {
+  [tagId: number]: TagState;
+}
+
+interface SavePayload {
+  sampleIds: number[];
+  addTagIds: number[];
+  removeTagIds: number[];
+}
+
+interface TagPopupProps {
+  isOpen: boolean;
+  onClose: () => void;
+  selectedSampleIds?: number[];
+  allTags?: Tag[];
+  samples?: Sample[];
+  onSave?: (payload: SavePayload) => void;
+  onTagCreated?: () => void;
+}
 
 /**
  * TagPopup Component
@@ -12,15 +35,6 @@ import './TagPopup.css';
  * - Search/filter tags
  * - Create new tags from search
  * - Save changes with batch API call
- *
- * @param {Object} props
- * @param {boolean} props.isOpen - Whether popup is visible
- * @param {Function} props.onClose - Close handler
- * @param {Array} props.selectedSampleIds - Array of selected sample IDs
- * @param {Array} props.allTags - All available tags from API
- * @param {Array} props.samples - All samples (to look up tags)
- * @param {Function} props.onSave - Save handler (receives add/remove tag operations)
- * @param {Function} props.onTagCreated - Callback when new tag is created (for refetching)
  */
 export default function TagPopup({
   isOpen,
@@ -30,17 +44,17 @@ export default function TagPopup({
   samples = [],
   onSave,
   onTagCreated
-}) {
+}: TagPopupProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [tagStates, setTagStates] = useState({}); // { tagId: 'checked' | 'unchecked' | 'indeterminate' }
-  const [initialStates, setInitialStates] = useState({});
+  const [tagStates, setTagStates] = useState<TagStates>({});
+  const [initialStates, setInitialStates] = useState<TagStates>({});
   const [hasChanges, setHasChanges] = useState(false);
 
   // Calculate initial tag states when popup opens or samples change
   useEffect(() => {
     if (!isOpen || selectedSampleIds.length === 0) return;
 
-    const states = {};
+    const states: TagStates = {};
     const selectedSamples = samples.filter(s => selectedSampleIds.includes(s.id));
 
     allTags.forEach(tag => {
@@ -90,10 +104,10 @@ export default function TagPopup({
   };
 
   // Handle tag checkbox toggle
-  const handleToggleTag = (tagId) => {
+  const handleToggleTag = (tagId: number) => {
     setTagStates(prev => {
       const current = prev[tagId] || 'unchecked';
-      let next;
+      let next: TagState;
 
       // State transitions:
       // checked -> unchecked
@@ -109,7 +123,7 @@ export default function TagPopup({
 
       // Check if anything changed from initial state
       const changed = Object.keys(newStates).some(id =>
-        newStates[id] !== initialStates[id]
+        newStates[Number(id)] !== initialStates[Number(id)]
       );
       setHasChanges(changed);
 
@@ -151,8 +165,8 @@ export default function TagPopup({
   // Handle save
   const handleSave = () => {
     // Calculate which tags to add/remove
-    const addTagIds = [];
-    const removeTagIds = [];
+    const addTagIds: number[] = [];
+    const removeTagIds: number[] = [];
 
     Object.keys(tagStates).forEach(tagIdStr => {
       const tagId = parseInt(tagIdStr);
@@ -185,7 +199,7 @@ export default function TagPopup({
   useEffect(() => {
     if (!isOpen) return;
 
-    const handleKeyDown = (e) => {
+    const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         onClose();
       }

@@ -24,6 +24,9 @@ interface ListSamplesParams {
   search?: string;
   page?: number;
   page_size?: number;
+  limit?: number;
+  tags?: string;
+  exclude_tags?: string;
 }
 
 interface ScanFoldersRequest {

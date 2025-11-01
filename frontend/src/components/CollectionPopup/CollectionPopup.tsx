@@ -1,7 +1,24 @@
 import { useState, useEffect, useMemo } from 'react';
 import { X, Plus } from 'lucide-react';
 import { createCollection } from '../../services/api';
+import type { Collection, Sample } from '../../types';
 import './CollectionPopup.css';
+
+type CollectionState = 'checked' | 'unchecked' | 'indeterminate';
+
+interface CollectionStates {
+  [collectionId: number]: CollectionState;
+}
+
+interface CollectionPopupProps {
+  isOpen: boolean;
+  onClose: () => void;
+  selectedSampleIds?: number[];
+  allCollections?: Collection[];
+  samples?: Sample[];
+  onSave?: (addCollectionIds: number[], removeCollectionIds: number[]) => void;
+  onCollectionCreated?: (collection: Collection) => void;
+}
 
 /**
  * CollectionPopup Component
@@ -12,15 +29,6 @@ import './CollectionPopup.css';
  * - Search/filter collections
  * - Create new collections from search
  * - Save changes with batch API call
- *
- * @param {Object} props
- * @param {boolean} props.isOpen - Whether popup is visible
- * @param {Function} props.onClose - Close handler
- * @param {Array} props.selectedSampleIds - Array of selected sample IDs
- * @param {Array} props.allCollections - All available collections from API
- * @param {Array} props.samples - All samples (to check collection membership)
- * @param {Function} props.onSave - Save handler (receives add/remove collection operations)
- * @param {Function} props.onCollectionCreated - Callback when new collection is created (for refetching)
  */
 export default function CollectionPopup({
   isOpen,
@@ -30,10 +38,10 @@ export default function CollectionPopup({
   samples = [],
   onSave,
   onCollectionCreated
-}) {
+}: CollectionPopupProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [collectionStates, setCollectionStates] = useState({}); // { collectionId: 'checked' | 'unchecked' | 'indeterminate' }
-  const [initialStates, setInitialStates] = useState({});
+  const [collectionStates, setCollectionStates] = useState<CollectionStates>({});
+  const [initialStates, setInitialStates] = useState<CollectionStates>({});
   const [hasChanges, setHasChanges] = useState(false);
   const [validationError, setValidationError] = useState('');
 
@@ -41,7 +49,7 @@ export default function CollectionPopup({
   useEffect(() => {
     if (!isOpen || selectedSampleIds.length === 0) return;
 
-    const states = {};
+    const states: CollectionStates = {};
     const selectedSamples = samples.filter(s => selectedSampleIds.includes(s.id));
 
     allCollections.forEach(collection => {
@@ -65,7 +73,7 @@ export default function CollectionPopup({
   }, [isOpen, selectedSampleIds, allCollections, samples]);
 
   // Validate collection name (lowercase letters, numbers, dots, underscores, dashes only)
-  const validateCollectionName = (name) => {
+  const validateCollectionName = (name: string) => {
     const validPattern = /^[a-z0-9._-]+$/;
     return validPattern.test(name);
   };
@@ -121,10 +129,10 @@ export default function CollectionPopup({
   };
 
   // Handle collection checkbox toggle
-  const handleToggleCollection = (collectionId) => {
+  const handleToggleCollection = (collectionId: number) => {
     setCollectionStates(prev => {
       const current = prev[collectionId] || 'unchecked';
-      let next;
+      let next: CollectionState;
 
       // State transitions:
       // checked -> unchecked
@@ -139,7 +147,7 @@ export default function CollectionPopup({
       const newStates = { ...prev, [collectionId]: next };
 
       // Check if there are changes
-      const changed = Object.keys(newStates).some(id => newStates[id] !== initialStates[id]);
+      const changed = Object.keys(newStates).some(id => newStates[Number(id)] !== initialStates[Number(id)]);
       setHasChanges(changed);
 
       return newStates;
@@ -176,8 +184,8 @@ export default function CollectionPopup({
   // Handle save
   const handleSave = () => {
     // Calculate which collections to add and remove
-    const addCollectionIds = [];
-    const removeCollectionIds = [];
+    const addCollectionIds: number[] = [];
+    const removeCollectionIds: number[] = [];
 
     Object.keys(collectionStates).forEach(collectionId => {
       const id = parseInt(collectionId);
@@ -194,7 +202,7 @@ export default function CollectionPopup({
       }
     });
 
-    onSave(addCollectionIds, removeCollectionIds);
+    onSave?.(addCollectionIds, removeCollectionIds);
     onClose();
   };
 
@@ -209,7 +217,7 @@ export default function CollectionPopup({
   useEffect(() => {
     if (!isOpen) return;
 
-    const handleKeyDown = (e) => {
+    const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         handleClose();
       } else if (e.key === 'Enter' && e.metaKey && hasChanges) {

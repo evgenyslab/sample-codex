@@ -1,11 +1,34 @@
-import { useState } from 'react'
-import Sidebar from '../components/Sidebar'
-import FolderBrowserModal from '../components/FolderBrowserModal'
-import SettingsModal from '../components/SettingsModal'
-import { useQuery } from '@tanstack/react-query'
-import { healthCheck, listSamples, listTags, getScannedFolders, listCollections } from '../services/api'
+import { getScannedFolders, healthCheck, listCollections, listSamples, listTags } from '../services/api'
 
-export default function Search() {
+import FolderBrowserModal from '../components/FolderBrowserModal.tsx'
+import SettingsModal from '../components/SettingsModal.tsx'
+import Sidebar from '../components/Sidebar'
+import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
+import type { Tag, Collection, Folder, Sample, HealthStatus, AppStats } from '../types'
+
+interface TagsResponse {
+  tags: Tag[]
+}
+
+interface CollectionsResponse {
+  collections: Collection[]
+}
+
+interface FoldersResponse {
+  folders: Folder[]
+}
+
+interface SamplesResponse {
+  samples: Sample[]
+  pagination: {
+    total: number
+    page: number
+    page_size: number
+  }
+}
+
+export default function Collections() {
   const [isFolderBrowserOpen, setIsFolderBrowserOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
 
@@ -13,15 +36,15 @@ export default function Search() {
     queryKey: ['health'],
     queryFn: async () => {
       const response = await healthCheck()
-      return response.data
+      return response.data as HealthStatus
     }
   })
 
   const { data: samplesData } = useQuery({
     queryKey: ['samples'],
     queryFn: async () => {
-      const response = await listSamples({ page: 1, limit: 10 })
-      return response.data
+      const response = await listSamples({ page: 1, page_size: 10 } as any)
+      return response.data as unknown as SamplesResponse
     }
   })
 
@@ -29,7 +52,7 @@ export default function Search() {
     queryKey: ['tags'],
     queryFn: async () => {
       const response = await listTags()
-      return response.data
+      return response.data as unknown as TagsResponse
     }
   })
 
@@ -37,7 +60,7 @@ export default function Search() {
     queryKey: ['folders'],
     queryFn: async () => {
       const response = await getScannedFolders()
-      return response.data
+      return response.data as unknown as FoldersResponse
     }
   })
 
@@ -45,11 +68,11 @@ export default function Search() {
     queryKey: ['collections'],
     queryFn: async () => {
       const response = await listCollections()
-      return response.data
+      return response.data as unknown as CollectionsResponse
     }
   })
 
-  const stats = {
+  const stats: AppStats = {
     samples: samplesData?.pagination?.total || 0,
     tags: tagsData?.tags?.length || 0,
     folders: foldersData?.folders?.length || 0,
@@ -62,13 +85,13 @@ export default function Search() {
         onAddFolders={() => setIsFolderBrowserOpen(true)}
         onOpenSettings={() => setIsSettingsOpen(true)}
         stats={stats}
-        health={health}
+        health={health as any}
       />
 
       <div className="flex-1 overflow-auto bg-muted/40">
         <div className="p-8">
-          <h1 className="text-2xl font-semibold tracking-tight mb-2">Search</h1>
-          <p className="text-muted-foreground">Search page placeholder</p>
+          <h1 className="text-2xl font-semibold tracking-tight mb-2">Collections</h1>
+          <p className="text-muted-foreground">Collections Management page placeholder</p>
         </div>
       </div>
 

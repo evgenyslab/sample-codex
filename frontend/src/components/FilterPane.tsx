@@ -1,24 +1,33 @@
-import { ChevronUpIcon, SearchIcon, TagIcon, XIcon } from './ui/Icons'
-import { useMemo, useState } from 'react'
+import { ChevronUpIcon, SearchIcon, TagIcon, XIcon } from './ui/Icons';
+import { useMemo, useState } from 'react';
+
+interface FilterItem {
+  id: number;
+  name: string;
+  [key: string]: any;
+}
+
+interface FilterPaneProps<T extends FilterItem = FilterItem> {
+  items?: T[];
+  type?: string;
+  includedItems?: number[];
+  excludedItems?: number[];
+  highlightedItems?: number[];
+  onItemClick?: (itemId: number, isRightClick: boolean) => void;
+  onRemoveIncluded?: (itemId: number) => void;
+  onRemoveExcluded?: (itemId: number) => void;
+  isVisible?: boolean;
+  onToggleVisibility?: (visible: boolean) => void;
+  getItemLabel?: (item: T) => string;
+  getItemId?: (item: T) => number;
+  showExclude?: boolean;
+  collapsedIcon?: React.ComponentType<{ className?: string }>;
+}
 
 /**
  * FilterPane - A reusable component for displaying and filtering items (tags, folders, collections)
- *
- * @param {Object} props
- * @param {Array} props.items - Array of items to display
- * @param {string} props.type - Type of items ('tags', 'folders', 'collections')
- * @param {Array} props.includedItems - Array of included item IDs
- * @param {Array} props.excludedItems - Array of excluded item IDs
- * @param {Function} props.onItemClick - Callback when item is clicked (itemId, isRightClick)
- * @param {Function} props.onRemoveIncluded - Callback to remove item from included list
- * @param {Function} props.onRemoveExcluded - Callback to remove item from excluded list
- * @param {boolean} props.isVisible - Whether the pane is visible
- * @param {Function} props.onToggleVisibility - Callback to toggle visibility
- * @param {string} props.getItemLabel - Function to get label from item (optional, defaults to item.name)
- * @param {string} props.getItemId - Function to get ID from item (optional, defaults to item.id)
- * @param {React.Component} props.collapsedIcon - Icon component to show when collapsed (optional, defaults to TagIcon)
  */
-export default function FilterPane({
+export default function FilterPane<T extends FilterItem = FilterItem>({
   items = [],
   type = 'items',
   includedItems = [],
@@ -33,59 +42,57 @@ export default function FilterPane({
   getItemId = (item) => item.id,
   showExclude = true,
   collapsedIcon: CollapsedIcon = TagIcon,
-}) {
-  const [searchQuery, setSearchQuery] = useState('')
-
-  // Get display names (for future use in tooltips/labels)
+}: FilterPaneProps<T>) {
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Filter items based on search, and sort highlighted items to top
   const filteredItems = useMemo(() => {
-    if (!items) return []
+    if (!items) return [];
 
-    let filtered = items
+    let filtered = items;
 
     // Apply search filter
     if (searchQuery) {
-      const searchLower = searchQuery.toLowerCase()
+      const searchLower = searchQuery.toLowerCase();
       filtered = items.filter(item =>
         getItemLabel(item).toLowerCase().includes(searchLower)
-      )
+      );
     }
 
     // Sort highlighted items to top
     if (highlightedItems && highlightedItems.length > 0) {
       filtered = [...filtered].sort((a, b) => {
-        const aHighlighted = highlightedItems.includes(getItemId(a))
-        const bHighlighted = highlightedItems.includes(getItemId(b))
+        const aHighlighted = highlightedItems.includes(getItemId(a));
+        const bHighlighted = highlightedItems.includes(getItemId(b));
 
-        if (aHighlighted && !bHighlighted) return -1
-        if (!aHighlighted && bHighlighted) return 1
-        return 0
-      })
+        if (aHighlighted && !bHighlighted) return -1;
+        if (!aHighlighted && bHighlighted) return 1;
+        return 0;
+      });
     }
 
-    return filtered
-  }, [items, searchQuery, highlightedItems, getItemLabel, getItemId])
+    return filtered;
+  }, [items, searchQuery, highlightedItems, getItemLabel, getItemId]);
 
-  const handleItemClick = (itemId, isRightClick) => {
+  const handleItemClick = (itemId: number, isRightClick: boolean) => {
     if (onItemClick) {
-      onItemClick(itemId, isRightClick)
+      onItemClick(itemId, isRightClick);
     }
-  }
+  };
 
-  const handleRemoveIncluded = (e, itemId) => {
-    e.stopPropagation()
+  const handleRemoveIncluded = (e: React.MouseEvent, itemId: number) => {
+    e.stopPropagation();
     if (onRemoveIncluded) {
-      onRemoveIncluded(itemId)
+      onRemoveIncluded(itemId);
     }
-  }
+  };
 
-  const handleRemoveExcluded = (e, itemId) => {
-    e.stopPropagation()
+  const handleRemoveExcluded = (e: React.MouseEvent, itemId: number) => {
+    e.stopPropagation();
     if (onRemoveExcluded) {
-      onRemoveExcluded(itemId)
+      onRemoveExcluded(itemId);
     }
-  }
+  };
 
   // Visible pane
   if (isVisible) {
@@ -114,11 +121,11 @@ export default function FilterPane({
           ) : (
             <div className="space-y-1">
               {filteredItems.map((item) => {
-                const itemId = getItemId(item)
-                const itemLabel = getItemLabel(item)
-                const isIncluded = includedItems.includes(itemId)
-                const isExcluded = excludedItems.includes(itemId)
-                const isHighlighted = highlightedItems.includes(itemId)
+                const itemId = getItemId(item);
+                const itemLabel = getItemLabel(item);
+                const isIncluded = includedItems.includes(itemId);
+                const isExcluded = excludedItems.includes(itemId);
+                const isHighlighted = highlightedItems.includes(itemId);
 
                 return (
                   <div
@@ -133,8 +140,8 @@ export default function FilterPane({
                     onClick={() => handleItemClick(itemId, false)}
                     onContextMenu={(e) => {
                       if (showExclude) {
-                        e.preventDefault()
-                        handleItemClick(itemId, true)
+                        e.preventDefault();
+                        handleItemClick(itemId, true);
                       }
                     }}
                     title={showExclude ? 'Left-click to include, right-click to exclude' : 'Click to select'}
@@ -144,9 +151,9 @@ export default function FilterPane({
                       <button
                         onClick={(e) => {
                           if (isIncluded) {
-                            handleRemoveIncluded(e, itemId)
+                            handleRemoveIncluded(e, itemId);
                           } else {
-                            handleRemoveExcluded(e, itemId)
+                            handleRemoveExcluded(e, itemId);
                           }
                         }}
                         className="ml-2 hover:opacity-70 transition-opacity"
@@ -156,7 +163,7 @@ export default function FilterPane({
                       </button>
                     )}
                   </div>
-                )
+                );
               })}
             </div>
           )}
@@ -195,7 +202,7 @@ export default function FilterPane({
           </div>
         )}
       </div>
-    )
+    );
   }
 
   // Collapsed state (toggle button)
@@ -208,8 +215,8 @@ export default function FilterPane({
       >
         <CollapsedIcon className="w-4 h-4" />
       </button>
-    )
+    );
   }
 
-  return null
+  return null;
 }

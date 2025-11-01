@@ -1,92 +1,105 @@
-import { CornerLeftUpIcon, FolderIcon, XIcon } from './ui/Icons'
-import { useEffect, useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { CornerLeftUpIcon, FolderIcon, XIcon } from './ui/Icons';
+import { useEffect, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { browseFolders } from '../services/api'
-import { useScanProgress } from '../hooks/useScanProgress.jsx'
+import { browseFolders } from '../services/api';
+import { useScanProgress } from '../hooks/useScanProgress';
 
-const FolderBrowserModal = ({ isOpen, onClose }) => {
-  const [currentPath, setCurrentPath] = useState('')
-  const [checkedFolders, setCheckedFolders] = useState([])
-  const [isScanning, setIsScanning] = useState(false)
-  const queryClient = useQueryClient()
-  const { startScan } = useScanProgress()
+interface FolderData {
+  path: string;
+  parent: string | null;
+  directories: string[];
+}
+
+interface FolderBrowserModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+const FolderBrowserModal = ({ isOpen, onClose }: FolderBrowserModalProps) => {
+  const [currentPath, setCurrentPath] = useState('');
+  const [checkedFolders, setCheckedFolders] = useState<string[]>([]);
+  const [isScanning, setIsScanning] = useState(false);
+  const queryClient = useQueryClient();
+  const { startScan } = useScanProgress();
 
   // Add escape key listener
   useEffect(() => {
-    const handleEscape = (e) => {
+    const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen) {
-        onClose()
+        onClose();
       }
-    }
+    };
 
-    document.addEventListener('keydown', handleEscape)
-    return () => document.removeEventListener('keydown', handleEscape)
-  }, [isOpen, onClose])
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [isOpen, onClose]);
 
   const { data: folderData, isLoading } = useQuery({
     queryKey: ['browse', currentPath],
     queryFn: async () => {
-      const response = await browseFolders(currentPath || null)
-      return response.data
+      const response = await browseFolders(currentPath || null);
+      return response.data as FolderData;
     },
     enabled: isOpen,
-  })
+  });
 
   useEffect(() => {
     if (isOpen && !currentPath) {
       // Will load home directory by default
-      setCurrentPath('')
+      setCurrentPath('');
     }
-  }, [isOpen])
+  }, [isOpen, currentPath]);
 
-  if (!isOpen) return null
+  if (!isOpen) return null;
 
-  const handleNavigate = (dirName) => {
-    const newPath = folderData.path + '/' + dirName
-    setCurrentPath(newPath)
-    setCheckedFolders([]) // Clear checked folders when navigating
-  }
+  const handleNavigate = (dirName: string) => {
+    if (folderData) {
+      const newPath = folderData.path + '/' + dirName;
+      setCurrentPath(newPath);
+      setCheckedFolders([]); // Clear checked folders when navigating
+    }
+  };
 
   const handleGoUp = () => {
     if (folderData?.parent) {
-      setCurrentPath(folderData.parent)
-      setCheckedFolders([]) // Clear checked folders when navigating
+      setCurrentPath(folderData.parent);
+      setCheckedFolders([]); // Clear checked folders when navigating
     }
-  }
+  };
 
-  const handleFolderCheck = (dirName) => {
+  const handleFolderCheck = (dirName: string) => {
     setCheckedFolders(prev => {
       if (prev.includes(dirName)) {
-        return prev.filter(f => f !== dirName)
+        return prev.filter(f => f !== dirName);
       } else {
-        return [...prev, dirName]
+        return [...prev, dirName];
       }
-    })
-  }
+    });
+  };
 
   const handleConfirmSelection = () => {
-    if (checkedFolders.length > 0 && !isScanning) {
-      setIsScanning(true)
+    if (checkedFolders.length > 0 && !isScanning && folderData) {
+      setIsScanning(true);
 
       // Convert checked folders to full paths
-      const folderPaths = checkedFolders.map(dirName => folderData.path + '/' + dirName)
+      const folderPaths = checkedFolders.map(dirName => folderData.path + '/' + dirName);
 
       // Start WebSocket scan
-      startScan(folderPaths)
+      startScan(folderPaths);
 
       // Wait a bit then close modal and refresh data
       setTimeout(() => {
-        setIsScanning(false)
-        setCheckedFolders([])
-        onClose()
+        setIsScanning(false);
+        setCheckedFolders([]);
+        onClose();
 
         // Refresh queries after scan starts
-        queryClient.invalidateQueries(['folders'])
-        queryClient.invalidateQueries(['samples'])
-      }, 200)
+        queryClient.invalidateQueries({ queryKey: ['folders'] });
+        queryClient.invalidateQueries({ queryKey: ['samples'] });
+      }, 200);
     }
-  }
+  };
 
   return (
     <div
@@ -185,7 +198,7 @@ const FolderBrowserModal = ({ isOpen, onClose }) => {
         </div>
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default FolderBrowserModal
+export default FolderBrowserModal;

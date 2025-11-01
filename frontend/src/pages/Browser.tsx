@@ -2,27 +2,58 @@ import { SearchIcon, TagIcon, CollectionIcon } from '../components/ui/Icons'
 import { getScannedFolders, healthCheck, listCollections, listSamples, listTags, bulkUpdateSampleTags, bulkUpdateSampleCollections } from '../services/api'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
-import CollectionPopup from '../components/CollectionPopup/CollectionPopup'
+import CollectionPopup from '../components/CollectionPopup/CollectionPopup.tsx'
 import FilterPane from '../components/FilterPane'
-import FolderBrowserModal from '../components/FolderBrowserModal'
+import FolderBrowserModal from '../components/FolderBrowserModal.tsx'
 import FolderTreePane from '../components/FolderTreePane'
 import SamplePlayer from '../components/SamplePlayer/SamplePlayer'
-import SettingsModal from '../components/SettingsModal'
+import SettingsModal from '../components/SettingsModal.tsx'
 import Sidebar from '../components/Sidebar'
-import TagPopup from '../components/TagPopup/TagPopup'
+import TagPopup from '../components/TagPopup/TagPopup.tsx'
 import { useQuery } from '@tanstack/react-query'
 import { useVirtualizer } from '@tanstack/react-virtual'
+import type { Tag, Collection, Folder, Sample, HealthStatus, AppStats } from '../types'
+
+interface TagsResponse {
+  tags: Tag[]
+}
+
+interface CollectionsResponse {
+  collections: Collection[]
+}
+
+interface FoldersResponse {
+  folders: Folder[]
+}
+
+interface SamplesResponse {
+  samples: Sample[]
+  pagination: {
+    total: number
+    page: number
+    page_size: number
+  }
+}
+
+type SortColumn = 'name' | 'duration' | 'channels'
+type SortDirection = 'asc' | 'desc'
+
+interface TagSaveParams {
+  sampleIds: number[]
+  addTagIds: number[]
+  removeTagIds: number[]
+}
 
 export default function Browser() {
   const [isFolderBrowserOpen, setIsFolderBrowserOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isTagPopupOpen, setIsTagPopupOpen] = useState(false)
   const [isCollectionPopupOpen, setIsCollectionPopupOpen] = useState(false)
-  const [selectedSample, setSelectedSample] = useState(null)
+  const [selectedSample, setSelectedSample] = useState<Sample | null>(null)
   const [isPlayerOpen, setIsPlayerOpen] = useState(false)
-  const [selectedSamples, setSelectedSamples] = useState(new Set())
+  const [selectedSamples, setSelectedSamples] = useState<Set<number>>(new Set())
 
-  const samplePlayerRef = useRef(null)
+  const samplePlayerRef = useRef<{ toggleLoop: () => void } | null>(null)
 
   // Persist pane visibility state
   const [isLeftPaneVisible, setIsLeftPaneVisible] = useState(() => {
@@ -39,17 +70,17 @@ export default function Browser() {
   })
 
   const [sampleSearch, setSampleSearch] = useState('')
-  const [includedTags, setIncludedTags] = useState([])
-  const [excludedTags, setExcludedTags] = useState([])
-  const [includedFolders, setIncludedFolders] = useState([])
-  const [excludedFolders, setExcludedFolders] = useState([])
-  const [includedCollections, setIncludedCollections] = useState([])
-  const [excludedCollections, setExcludedCollections] = useState([])
-  const [sortColumn, setSortColumn] = useState(null) // 'name' | 'duration' | 'channels'
-  const [sortDirection, setSortDirection] = useState(null) // 'asc' | 'desc'
-  const lastClickedIndexRef = useRef(null) // Track last clicked index for shift-click range selection
+  const [includedTags, setIncludedTags] = useState<number[]>([])
+  const [excludedTags, setExcludedTags] = useState<number[]>([])
+  const [includedFolders, setIncludedFolders] = useState<string[]>([])
+  const [excludedFolders, setExcludedFolders] = useState<string[]>([])
+  const [includedCollections, setIncludedCollections] = useState<number[]>([])
+  const [excludedCollections, setExcludedCollections] = useState<number[]>([])
+  const [sortColumn, setSortColumn] = useState<SortColumn | null>(null)
+  const [sortDirection, setSortDirection] = useState<SortDirection | null>(null)
+  const lastClickedIndexRef = useRef<number | null>(null)
 
-  const tableRef = useRef(null)
+  const tableRef = useRef<HTMLDivElement | null>(null)
 
   // Persist pane visibility to localStorage when it changes
   useEffect(() => {
@@ -68,14 +99,23 @@ export default function Browser() {
     queryKey: ['health'],
     queryFn: async () => {
       const response = await healthCheck()
-      return response.data
+      return response.data as HealthStatus
+    }
+  })
+
+  // Query for all samples (used for folder tree - no tag filters)
+  const { data: allSamplesData } = useQuery({
+    queryKey: ['samples-all'],
+    queryFn: async () => {
+      const response = await listSamples({ page: 1, limit: 100000 })
+      return response.data as unknown as SamplesResponse
     }
   })
 
   const { data: samplesData, refetch: refetchSamples } = useQuery({
     queryKey: ['samples', includedTags, excludedTags],
     queryFn: async () => {
-      const params = { page: 1, limit: 100000 }
+      const params: any = { page: 1, limit: 100000 }
       if (includedTags.length > 0) {
         params.tags = includedTags.join(',')
       }
@@ -83,7 +123,7 @@ export default function Browser() {
         params.exclude_tags = excludedTags.join(',')
       }
       const response = await listSamples(params)
-      return response.data
+      return response.data as unknown as SamplesResponse
     }
   })
 
@@ -91,7 +131,7 @@ export default function Browser() {
     queryKey: ['tags'],
     queryFn: async () => {
       const response = await listTags()
-      return response.data
+      return response.data as unknown as TagsResponse
     }
   })
 
@@ -99,7 +139,7 @@ export default function Browser() {
     queryKey: ['collections'],
     queryFn: async () => {
       const response = await listCollections()
-      return response.data
+      return response.data as unknown as CollectionsResponse
     }
   })
 
@@ -107,11 +147,11 @@ export default function Browser() {
     queryKey: ['folders'],
     queryFn: async () => {
       const response = await getScannedFolders()
-      return response.data
+      return response.data as unknown as FoldersResponse
     }
   })
 
-  const stats = {
+  const stats: AppStats = {
     samples: samplesData?.pagination?.total || 0,
     tags: tagsData?.tags?.length || 0,
     folders: foldersData?.folders?.length || 0,
@@ -119,7 +159,7 @@ export default function Browser() {
   }
 
   // Helper function to check if a path is in a folder (with proper delimiter checking)
-  const isPathInFolder = (filePath, folderPath) => {
+  const isPathInFolder = (filePath: string, folderPath: string): boolean => {
     if (!filePath || !folderPath) return false
     // Ensure folder path ends with / for proper matching
     const normalizedFolder = folderPath.endsWith('/') ? folderPath : folderPath + '/'
@@ -188,7 +228,8 @@ export default function Browser() {
     // Apply sorting
     if (sortColumn && sortDirection) {
       filtered = [...filtered].sort((a, b) => {
-        let aVal, bVal
+        let aVal: string | number
+        let bVal: string | number
 
         switch (sortColumn) {
           case 'name':
@@ -196,12 +237,12 @@ export default function Browser() {
             bVal = (b.filename || '').toLowerCase()
             break
           case 'duration':
-            aVal = a.duration || 0
-            bVal = b.duration || 0
+            aVal = (a as any).duration || 0
+            bVal = (b as any).duration || 0
             break
           case 'channels':
-            aVal = a.channels || 0
-            bVal = b.channels || 0
+            aVal = (a as any).channels || 0
+            bVal = (b as any).channels || 0
             break
           default:
             return 0
@@ -219,7 +260,7 @@ export default function Browser() {
   // Calculate which tags are actually used in samples (for filtering tag pane)
   const usedTags = useMemo(() => {
     const allSamples = samplesData?.samples || []
-    const tagIds = new Set()
+    const tagIds = new Set<number>()
 
     allSamples.forEach(sample => {
       sample.tags?.forEach(tag => {
@@ -252,7 +293,7 @@ export default function Browser() {
     overscan: 10,
   })
 
-  const handleTagClick = (tagId, isRightClick = false) => {
+  const handleTagClick = (tagId: number, isRightClick = false) => {
     if (isRightClick) {
       // Right-click: toggle exclude
       if (excludedTags.includes(tagId)) {
@@ -272,7 +313,7 @@ export default function Browser() {
     }
   }
 
-  const handleFolderClick = (folderPath, isCtrlClick = false) => {
+  const handleFolderClick = (folderPath: string, isCtrlClick = false) => {
     if (isCtrlClick) {
       // Ctrl/Cmd-click: toggle exclude
       if (excludedFolders.includes(folderPath)) {
@@ -292,7 +333,7 @@ export default function Browser() {
     }
   }
 
-  const handleCollectionClick = (collectionId, isRightClick = false) => {
+  const handleCollectionClick = (collectionId: number, isRightClick = false) => {
     if (isRightClick) {
       // Right-click: toggle exclude
       if (excludedCollections.includes(collectionId)) {
@@ -312,12 +353,12 @@ export default function Browser() {
     }
   }
 
-  // Extract sample paths for folder tree (from tag-filtered samples)
+  // Extract sample paths for folder tree (from ALL samples, not filtered by tags)
   const samplePathsForFolderTree = useMemo(() => {
-    return (samplesData?.samples || []).map(s => s.filepath).filter(Boolean)
-  }, [samplesData])
+    return (allSamplesData?.samples || []).map(s => s.filepath).filter(Boolean)
+  }, [allSamplesData])
 
-  const formatDuration = (seconds) => {
+  const formatDuration = (seconds: number): string => {
     if (!seconds) return '-'
     const mins = Math.floor(seconds / 60)
     const secs = seconds % 60
@@ -327,7 +368,7 @@ export default function Browser() {
   }
 
   // Handle column sort toggle: none -> asc -> desc -> none
-  const handleSort = (column) => {
+  const handleSort = (column: SortColumn) => {
     if (sortColumn !== column) {
       // New column, start with ascending
       setSortColumn(column)
@@ -343,7 +384,7 @@ export default function Browser() {
   }
 
   // Handle tag save from popup
-  const handleTagSave = async ({ sampleIds, addTagIds, removeTagIds }) => {
+  const handleTagSave = async ({ sampleIds, addTagIds, removeTagIds }: TagSaveParams) => {
     console.log('Saving tag changes:', { sampleIds, addTagIds, removeTagIds })
 
     try {
@@ -362,7 +403,7 @@ export default function Browser() {
     }
   }
 
-  const handleCollectionSave = async (addCollectionIds, removeCollectionIds) => {
+  const handleCollectionSave = async (addCollectionIds: number[], removeCollectionIds: number[]) => {
     const sampleIds = Array.from(selectedSamples)
     console.log('Saving collection changes:', { sampleIds, addCollectionIds, removeCollectionIds })
 
@@ -385,9 +426,9 @@ export default function Browser() {
 
   // Keyboard shortcuts for multi-select and navigation
   useEffect(() => {
-    const handleKeyDown = (e) => {
+    const handleKeyDown = (e: KeyboardEvent) => {
       // Ignore if typing in input/textarea
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+      if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'TEXTAREA') {
         return
       }
 
@@ -422,9 +463,11 @@ export default function Browser() {
         }
 
         const nextSample = samples[nextIndex]
-        setSelectedSample(nextSample)
-        setIsPlayerOpen(true)
-        setSelectedSamples(new Set()) // Clear multi-select
+        if (nextSample) {
+          setSelectedSample(nextSample)
+          setIsPlayerOpen(true)
+          setSelectedSamples(new Set()) // Clear multi-select
+        }
       } else if (e.key === 'l' && selectedSample && isPlayerOpen) {
         // Toggle loop mode (only when player is open)
         e.preventDefault()
@@ -486,7 +529,7 @@ export default function Browser() {
         onAddFolders={() => setIsFolderBrowserOpen(true)}
         onOpenSettings={() => setIsSettingsOpen(true)}
         stats={stats}
-        health={health}
+        health={health as any}
       />
 
       <div className="flex-1 flex gap-2 p-4 overflow-hidden">
@@ -628,6 +671,7 @@ export default function Browser() {
               >
                 {rowVirtualizer.getVirtualItems().map((virtualRow) => {
                   const sample = samples[virtualRow.index]
+                  if (!sample) return null
                   const isSelected = selectedSample?.id === sample.id
                   return (
                     <div
@@ -657,9 +701,12 @@ export default function Browser() {
                           const endIndex = Math.max(lastClickedIndexRef.current, currentIndex)
 
                           // Select all samples in range
-                          const rangeIds = new Set()
+                          const rangeIds = new Set<number>()
                           for (let i = startIndex; i <= endIndex; i++) {
-                            rangeIds.add(samples[i].id)
+                            const sample = samples[i]
+                            if (sample) {
+                              rangeIds.add(sample.id)
+                            }
                           }
 
                           setSelectedSamples(rangeIds)
@@ -706,10 +753,10 @@ export default function Browser() {
                         {sample.filename}
                       </div>
                       <div className="w-32 px-4 py-2 text-muted-foreground font-mono text-xs">
-                        {formatDuration(sample.duration)}
+                        {formatDuration((sample as any).duration)}
                       </div>
                       <div className="w-28 px-4 py-2 text-muted-foreground text-xs">
-                        {sample.channels || '-'}
+                        {(sample as any).channels || '-'}
                       </div>
                     </div>
                   )
@@ -762,7 +809,7 @@ export default function Browser() {
         allCollections={collectionsData?.collections || []}
         samples={samplesData?.samples || []}
         onSave={handleCollectionSave}
-        onCollectionCreated={refetchCollections}
+        onCollectionCreated={() => refetchCollections()}
       />
     </div>
   )
