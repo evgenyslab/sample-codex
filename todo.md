@@ -1,8 +1,12 @@
 # TODO's
 
+BE
+- on start up also check scan folder statuses, seems like theres some handing ones
 
+BE
+- do we need all those FTS (full text search) tables?
+- should we alias the files instead of the collections?
 
-- key to clear all selections 
 
 - the collapsed num samples display logic is weak
 - BE what happens if the same folder is rescanned? (should ignore)
@@ -19,6 +23,7 @@
     - toggle play direction
     - play speed slider
     - pitch slider or semitone toggle
+
 - Allow loading db from different file from FE
 - BE needs unit tests for API
 

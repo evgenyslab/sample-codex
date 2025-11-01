@@ -169,16 +169,15 @@ async def bulk_update_sample_tags(request: BulkUpdateTagsRequest):
                     if conn.total_changes > 0:
                         added_count += 1
                 except Exception as e:
-                    raise HTTPException(status_code=400, detail=f"Error adding tag {tag_id} to sample {sample_id}: {str(e)}")
+                    raise HTTPException(
+                        status_code=400, detail=f"Error adding tag {tag_id} to sample {sample_id}: {str(e)}"
+                    )
 
         # Process tag removals
         removed_count = 0
         for sample_id in request.sample_ids:
             for tag_id in request.remove_tag_ids:
-                cursor = conn.execute(
-                    "DELETE FROM sample_tags WHERE sample_id = ? AND tag_id = ?",
-                    (sample_id, tag_id)
-                )
+                cursor = conn.execute("DELETE FROM sample_tags WHERE sample_id = ? AND tag_id = ?", (sample_id, tag_id))
                 removed_count += cursor.rowcount
 
         conn.commit()
@@ -191,6 +190,6 @@ async def bulk_update_sample_tags(request: BulkUpdateTagsRequest):
             "details": {
                 "sample_ids": request.sample_ids,
                 "add_tag_ids": request.add_tag_ids,
-                "remove_tag_ids": request.remove_tag_ids
-            }
+                "remove_tag_ids": request.remove_tag_ids,
+            },
         }

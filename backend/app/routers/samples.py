@@ -34,15 +34,15 @@ async def list_samples(
     limit: int = ITEMS_PER_PAGE,
     folder_id: Optional[int] = None,
     tags: Optional[str] = None,
-    exclude_tags: Optional[str] = None
+    exclude_tags: Optional[str] = None,
 ):
     """List samples with pagination and optional filtering by folder and tags"""
     offset = (page - 1) * limit
 
     with db.get_connection() as conn:
         # Parse tag IDs
-        include_tag_ids = [int(tid) for tid in tags.split(',')] if tags else []
-        exclude_tag_ids = [int(tid) for tid in exclude_tags.split(',')] if exclude_tags else []
+        include_tag_ids = [int(tid) for tid in tags.split(",")] if tags else []
+        exclude_tag_ids = [int(tid) for tid in exclude_tags.split(",")] if exclude_tags else []
 
         # Build query
         if include_tag_ids or exclude_tag_ids:
@@ -58,7 +58,7 @@ async def list_samples(
 
             # Exclude tags filter (sample must NOT have ANY excluded tags)
             if exclude_tag_ids:
-                placeholders = ','.join('?' * len(exclude_tag_ids))
+                placeholders = ",".join("?" * len(exclude_tag_ids))
                 query += f" AND NOT EXISTS (SELECT 1 FROM sample_tags st WHERE st.sample_id = s.id AND st.tag_id IN ({placeholders}))"
                 params.extend(exclude_tag_ids)
 
@@ -97,9 +97,9 @@ async def list_samples(
                 WHERE st.sample_id = ?
                 ORDER BY t.name
                 """,
-                (sample['id'],)
+                (sample["id"],),
             )
-            sample['tags'] = [dict(row) for row in tags_cursor.fetchall()]
+            sample["tags"] = [dict(row) for row in tags_cursor.fetchall()]
 
             # Get collections for each sample
             collections_cursor = conn.execute(
@@ -110,9 +110,9 @@ async def list_samples(
                 WHERE ci.sample_id = ?
                 ORDER BY c.name
                 """,
-                (sample['id'],)
+                (sample["id"],),
             )
-            sample['collections'] = [dict(row) for row in collections_cursor.fetchall()]
+            sample["collections"] = [dict(row) for row in collections_cursor.fetchall()]
 
         # Get total count with same filters
         if include_tag_ids or exclude_tag_ids:
@@ -121,11 +121,13 @@ async def list_samples(
 
             if include_tag_ids:
                 for tag_id in include_tag_ids:
-                    count_query += f" AND EXISTS (SELECT 1 FROM sample_tags st WHERE st.sample_id = s.id AND st.tag_id = ?)"
+                    count_query += (
+                        f" AND EXISTS (SELECT 1 FROM sample_tags st WHERE st.sample_id = s.id AND st.tag_id = ?)"
+                    )
                     count_params.append(tag_id)
 
             if exclude_tag_ids:
-                placeholders = ','.join('?' * len(exclude_tag_ids))
+                placeholders = ",".join("?" * len(exclude_tag_ids))
                 count_query += f" AND NOT EXISTS (SELECT 1 FROM sample_tags st WHERE st.sample_id = s.id AND st.tag_id IN ({placeholders}))"
                 count_params.extend(exclude_tag_ids)
 

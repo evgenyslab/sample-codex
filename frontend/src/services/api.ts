@@ -195,7 +195,7 @@ export const searchSamples = (params: SearchParams): Promise<AxiosResponse<Sampl
   api.get('/search', { params });
 
 // Health check
-export const healthCheck = (): Promise<AxiosResponse<{ status: string }>> =>
+export const healthCheck = (): Promise<AxiosResponse<{ status: string; database: boolean; database_path: string }>> =>
   api.get('/health');
 
 // Database operations

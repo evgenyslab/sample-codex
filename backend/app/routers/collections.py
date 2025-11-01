@@ -130,7 +130,12 @@ async def add_item_to_collection(collection_id: int, request: AddItemRequest):
                 (collection_id, request.sample_id, next_order, request.alias),
             )
             conn.commit()
-            return {"status": "added", "collection_id": collection_id, "sample_id": request.sample_id, "alias": request.alias}
+            return {
+                "status": "added",
+                "collection_id": collection_id,
+                "sample_id": request.sample_id,
+                "alias": request.alias,
+            }
         except Exception as e:
             if "UNIQUE constraint failed" in str(e):
                 raise HTTPException(status_code=400, detail="Sample already in collection")
@@ -195,7 +200,7 @@ async def bulk_update_sample_collections(request: BulkUpdateCollectionsRequest):
                 # Get next order index for this collection
                 max_order = conn.execute(
                     "SELECT MAX(order_index) as max_order FROM collection_items WHERE collection_id = ?",
-                    (collection_id,)
+                    (collection_id,),
                 ).fetchone()["max_order"]
                 next_order = (max_order or 0) + 1
 
@@ -207,14 +212,16 @@ async def bulk_update_sample_collections(request: BulkUpdateCollectionsRequest):
                     if conn.total_changes > 0:
                         added_count += 1
                 except Exception as e:
-                    raise HTTPException(status_code=400, detail=f"Error adding sample {sample_id} to collection {collection_id}: {str(e)}")
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Error adding sample {sample_id} to collection {collection_id}: {str(e)}",
+                    )
 
         # Process removals
         for sample_id in request.sample_ids:
             for collection_id in request.remove_collection_ids:
                 cursor = conn.execute(
-                    "DELETE FROM collection_items WHERE collection_id = ? AND sample_id = ?",
-                    (collection_id, sample_id)
+                    "DELETE FROM collection_items WHERE collection_id = ? AND sample_id = ?", (collection_id, sample_id)
                 )
                 removed_count += cursor.rowcount
 
@@ -224,7 +231,7 @@ async def bulk_update_sample_collections(request: BulkUpdateCollectionsRequest):
             placeholders = ",".join("?" * len(all_collection_ids))
             conn.execute(
                 f"UPDATE collections SET updated_at = CURRENT_TIMESTAMP WHERE id IN ({placeholders})",
-                list(all_collection_ids)
+                list(all_collection_ids),
             )
 
         conn.commit()
@@ -237,6 +244,6 @@ async def bulk_update_sample_collections(request: BulkUpdateCollectionsRequest):
             "details": {
                 "sample_ids": request.sample_ids,
                 "add_collection_ids": request.add_collection_ids,
-                "remove_collection_ids": request.remove_collection_ids
-            }
+                "remove_collection_ids": request.remove_collection_ids,
+            },
         }

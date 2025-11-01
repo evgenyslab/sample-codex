@@ -60,7 +60,11 @@ app.include_router(search.router, prefix="/api/search", tags=["search"])
 async def health_check():
     """Health check endpoint"""
     db_healthy = db.check_health()
-    return {"status": "healthy" if db_healthy else "unhealthy", "database": db_healthy}
+    return {
+        "status": "healthy" if db_healthy else "unhealthy",
+        "database": db_healthy,
+        "database_path": str(db.db_path),
+    }
 
 
 @app.post("/api/database/clear")

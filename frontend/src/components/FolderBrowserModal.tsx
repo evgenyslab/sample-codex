@@ -1,4 +1,4 @@
-import { CornerLeftUpIcon, FolderIcon, XIcon } from './ui/Icons';
+import { CornerLeftUpIcon, FolderIcon, FolderFilledIcon, XIcon } from './ui/Icons';
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -151,27 +151,33 @@ const FolderBrowserModal = ({ isOpen, onClose }: FolderBrowserModalProps) => {
             <div className="text-center py-8 text-sm text-muted-foreground">Loading...</div>
           ) : folderData?.directories && folderData.directories.length > 0 ? (
             <div className="space-y-1">
-              {folderData.directories.map((dir) => (
-                <div
-                  key={dir}
-                  className="flex items-center gap-3 px-3 py-2.5 hover:bg-accent rounded-md transition-colors text-sm text-card-foreground border border-transparent hover:border-border"
-                >
-                  <input
-                    type="checkbox"
-                    checked={checkedFolders.includes(dir)}
-                    onChange={() => handleFolderCheck(dir)}
-                    className="w-4 h-4 rounded border-input text-foreground focus:ring-ring cursor-pointer"
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                  <button
-                    onClick={() => handleNavigate(dir)}
-                    className="flex-1 flex items-center gap-3 text-left"
+              {folderData.directories.map((dir) => {
+                const isChecked = checkedFolders.includes(dir);
+                return (
+                  <div
+                    key={dir}
+                    className="flex items-center gap-3 px-3 py-2.5 hover:bg-accent rounded-md transition-colors text-sm text-card-foreground border border-transparent hover:border-border group"
                   >
-                    <FolderIcon className="w-4 h-4 text-muted-foreground" />
-                    <span>{dir}</span>
-                  </button>
-                </div>
-              ))}
+                    <button
+                      onClick={() => handleFolderCheck(dir)}
+                      className="flex-shrink-0 cursor-pointer transition-colors"
+                      aria-label={isChecked ? 'Unselect folder' : 'Select folder'}
+                    >
+                      {isChecked ? (
+                        <FolderFilledIcon className="w-5 h-5 text-primary" />
+                      ) : (
+                        <FolderIcon className="w-5 h-5 text-muted-foreground group-hover:text-card-foreground" />
+                      )}
+                    </button>
+                    <button
+                      onClick={() => handleNavigate(dir)}
+                      className="flex-1 text-left hover:text-primary transition-colors cursor-pointer"
+                    >
+                      {dir}
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           ) : (
             <div className="text-center py-8 text-sm text-muted-foreground">

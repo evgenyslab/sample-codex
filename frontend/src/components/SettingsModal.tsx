@@ -1,9 +1,8 @@
-import { XIcon } from './ui/Icons';
+import { XIcon, MoonIcon, SunIcon } from './ui/Icons';
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTheme } from '../contexts/ThemeContext';
-import Toggle from './ui/Toggle';
-import { clearAllData } from '../services/api';
+import { clearAllData, healthCheck } from '../services/api';
 import { toast } from 'sonner';
 
 interface SettingsModalProps {
@@ -13,8 +12,22 @@ interface SettingsModalProps {
 
 const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
   const [isClearing, setIsClearing] = useState(false);
+  const [databasePath, setDatabasePath] = useState<string>('');
   const queryClient = useQueryClient();
   const { theme, toggleTheme } = useTheme();
+
+  // Fetch database path on open
+  useEffect(() => {
+    if (isOpen) {
+      healthCheck()
+        .then((response) => {
+          setDatabasePath(response.data.database_path);
+        })
+        .catch((error) => {
+          console.error('Failed to fetch database path:', error);
+        });
+    }
+  }, [isOpen]);
 
   // Add escape key listener
   useEffect(() => {
@@ -80,28 +93,17 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
 
         {/* Content */}
         <div className="px-6 py-6 space-y-6">
-          {/* Theme Toggle */}
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-medium text-card-foreground">Theme</h3>
-              <p className="text-xs text-muted-foreground mt-1">
-                Switch between light and dark mode
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">Light</span>
-              <Toggle
-                pressed={theme === 'dark'}
-                onPressedChange={toggleTheme}
-                aria-label="Toggle theme"
-              />
-              <span className="text-xs text-muted-foreground">Dark</span>
-            </div>
-          </div>
-
           {/* Database Actions */}
           <div className="space-y-3">
             <h3 className="text-sm font-medium text-card-foreground">Database</h3>
+
+            {/* Database Path */}
+            <div className="p-3 bg-muted/50 rounded-md border border-border">
+              <p className="text-xs text-muted-foreground mb-1">Database Location</p>
+              <p className="text-xs font-mono text-card-foreground break-all">
+                {databasePath || 'Loading...'}
+              </p>
+            </div>
 
             <div className="flex items-center justify-between p-3 bg-red-500/10 rounded-md border border-red-500/20">
               <div>
@@ -122,7 +124,17 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-border bg-muted flex items-center justify-end">
+        <div className="px-6 py-4 border-t border-border bg-muted flex items-center justify-between">
+          {/* Theme Toggle Button */}
+          <button
+            onClick={toggleTheme}
+            className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors h-9 w-9 text-muted-foreground hover:text-card-foreground hover:bg-accent-foreground/10"
+            aria-label="Toggle theme"
+          >
+            {theme === 'dark' ? <SunIcon className="w-5 h-5" /> : <MoonIcon className="w-5 h-5" />}
+          </button>
+
+          {/* Close Button */}
           <button
             onClick={onClose}
             className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors h-9 px-3 text-card-foreground bg-accent-foreground/20 hover:bg-accent-foreground/50 hover:text-accent-foreground"

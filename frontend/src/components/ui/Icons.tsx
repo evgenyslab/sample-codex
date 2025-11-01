@@ -4,6 +4,7 @@ import {
   IconChevronUp,
   IconCornerLeftUp,
   IconFolder,
+  IconFolderFilled,
   IconLayoutDashboard,
   IconMoon,
   IconMusic,
@@ -26,6 +27,10 @@ export const DashboardIcon = ({ className = "w-4 h-4" }: IconProps) => (
 
 export const FolderIcon = ({ className = "w-4 h-4" }: IconProps) => (
   <IconFolder className={className} stroke={1.5} />
+);
+
+export const FolderFilledIcon = ({ className = "w-4 h-4" }: IconProps) => (
+  <IconFolderFilled className={className} />
 );
 
 export const TagIcon = ({ className = "w-4 h-4" }: IconProps) => (

@@ -45,9 +45,7 @@ def run_migrations(conn: sqlite3.Connection):
         print("No migration files found")
         return
 
-    pending_migrations = [
-        f for f in migration_files if f.stem not in applied_migrations and not f.stem.startswith("_")
-    ]
+    pending_migrations = [f for f in migration_files if f.stem not in applied_migrations and not f.stem.startswith("_")]
 
     if not pending_migrations:
         print("✓ All migrations already applied")
@@ -109,9 +107,7 @@ def rollback_migration(conn: sqlite3.Connection, migration_name: str = None):
         target_migration = migration_name
     else:
         # Get the last applied migration
-        cursor = conn.execute(
-            "SELECT migration_name FROM schema_migrations ORDER BY id DESC LIMIT 1"
-        )
+        cursor = conn.execute("SELECT migration_name FROM schema_migrations ORDER BY id DESC LIMIT 1")
         result = cursor.fetchone()
         if not result:
             print("No migrations to rollback")
