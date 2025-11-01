@@ -40,10 +40,12 @@ export const createCollection = (data) => api.post('/collections', data);
 export const getCollection = (id) => api.get(`/collections/${id}`);
 export const updateCollection = (id, data) => api.put(`/collections/${id}`, data);
 export const deleteCollection = (id) => api.delete(`/collections/${id}`);
-export const addItemToCollection = (collectionId, sampleId) =>
-  api.post(`/collections/${collectionId}/items`, { sample_id: sampleId });
+export const addItemToCollection = (collectionId, sampleId, alias = null) =>
+  api.post(`/collections/${collectionId}/items`, { sample_id: sampleId, alias });
 export const removeItemFromCollection = (collectionId, sampleId) =>
   api.delete(`/collections/${collectionId}/items/${sampleId}`);
+export const bulkUpdateSampleCollections = (sampleIds, addCollectionIds, removeCollectionIds) =>
+  api.post('/collections/bulk', { sample_ids: sampleIds, add_collection_ids: addCollectionIds, remove_collection_ids: removeCollectionIds });
 
 // Search
 export const searchSamples = (params) => api.get('/search', { params });

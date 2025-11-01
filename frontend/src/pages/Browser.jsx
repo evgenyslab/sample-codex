@@ -1,7 +1,8 @@
-import { SearchIcon } from '../components/ui/Icons'
-import { getScannedFolders, healthCheck, listCollections, listSamples, listTags, bulkUpdateSampleTags } from '../services/api'
+import { SearchIcon, TagIcon, CollectionIcon } from '../components/ui/Icons'
+import { getScannedFolders, healthCheck, listCollections, listSamples, listTags, bulkUpdateSampleTags, bulkUpdateSampleCollections } from '../services/api'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
+import CollectionPopup from '../components/CollectionPopup/CollectionPopup'
 import FilterPane from '../components/FilterPane'
 import FolderBrowserModal from '../components/FolderBrowserModal'
 import FolderTreePane from '../components/FolderTreePane'
@@ -16,6 +17,7 @@ export default function Browser() {
   const [isFolderBrowserOpen, setIsFolderBrowserOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isTagPopupOpen, setIsTagPopupOpen] = useState(false)
+  const [isCollectionPopupOpen, setIsCollectionPopupOpen] = useState(false)
   const [selectedSample, setSelectedSample] = useState(null)
   const [isPlayerOpen, setIsPlayerOpen] = useState(false)
   const [selectedSamples, setSelectedSamples] = useState(new Set())
@@ -25,11 +27,15 @@ export default function Browser() {
   // Persist pane visibility state
   const [isLeftPaneVisible, setIsLeftPaneVisible] = useState(() => {
     const saved = localStorage.getItem('browser-tags-pane-visible')
-    return saved !== null ? saved === 'true' : true
+    return saved !== null ? saved === 'true' : false
   })
   const [isFolderPaneVisible, setIsFolderPaneVisible] = useState(() => {
     const saved = localStorage.getItem('browser-folders-pane-visible')
-    return saved !== null ? saved === 'true' : true
+    return saved !== null ? saved === 'true' : false
+  })
+  const [isCollectionPaneVisible, setIsCollectionPaneVisible] = useState(() => {
+    const saved = localStorage.getItem('browser-collections-pane-visible')
+    return saved !== null ? saved === 'true' : false
   })
 
   const [sampleSearch, setSampleSearch] = useState('')
@@ -37,6 +43,8 @@ export default function Browser() {
   const [excludedTags, setExcludedTags] = useState([])
   const [includedFolders, setIncludedFolders] = useState([])
   const [excludedFolders, setExcludedFolders] = useState([])
+  const [includedCollections, setIncludedCollections] = useState([])
+  const [excludedCollections, setExcludedCollections] = useState([])
   const [sortColumn, setSortColumn] = useState(null) // 'name' | 'duration' | 'channels'
   const [sortDirection, setSortDirection] = useState(null) // 'asc' | 'desc'
   const lastClickedIndexRef = useRef(null) // Track last clicked index for shift-click range selection
@@ -51,6 +59,10 @@ export default function Browser() {
   useEffect(() => {
     localStorage.setItem('browser-folders-pane-visible', isFolderPaneVisible.toString())
   }, [isFolderPaneVisible])
+
+  useEffect(() => {
+    localStorage.setItem('browser-collections-pane-visible', isCollectionPaneVisible.toString())
+  }, [isCollectionPaneVisible])
 
   const { data: health } = useQuery({
     queryKey: ['health'],
@@ -83,18 +95,18 @@ export default function Browser() {
     }
   })
 
-  const { data: foldersData } = useQuery({
-    queryKey: ['folders'],
+  const { data: collectionsData, refetch: refetchCollections } = useQuery({
+    queryKey: ['collections'],
     queryFn: async () => {
-      const response = await getScannedFolders()
+      const response = await listCollections()
       return response.data
     }
   })
 
-  const { data: collectionsData } = useQuery({
-    queryKey: ['collections'],
+  const { data: foldersData } = useQuery({
+    queryKey: ['folders'],
     queryFn: async () => {
-      const response = await listCollections()
+      const response = await getScannedFolders()
       return response.data
     }
   })
@@ -117,6 +129,31 @@ export default function Browser() {
   // Get samples list and filter by search and folders
   const samples = useMemo(() => {
     let filtered = samplesData?.samples || []
+
+    // Apply collection filters
+    if (includedCollections.length > 0 || excludedCollections.length > 0) {
+      filtered = filtered.filter(sample => {
+        const sampleCollectionIds = (sample.collections || []).map(c => c.id)
+
+        // Check exclusions first
+        if (excludedCollections.length > 0) {
+          const isExcluded = excludedCollections.some(collectionId =>
+            sampleCollectionIds.includes(collectionId)
+          )
+          if (isExcluded) return false
+        }
+
+        // Check inclusions
+        if (includedCollections.length > 0) {
+          const isIncluded = includedCollections.some(collectionId =>
+            sampleCollectionIds.includes(collectionId)
+          )
+          return isIncluded
+        }
+
+        return true
+      })
+    }
 
     // Apply folder filters
     if (includedFolders.length > 0 || excludedFolders.length > 0) {
@@ -177,7 +214,7 @@ export default function Browser() {
     }
 
     return filtered
-  }, [samplesData, sampleSearch, includedFolders, excludedFolders, sortColumn, sortDirection])
+  }, [samplesData, sampleSearch, includedCollections, excludedCollections, includedFolders, excludedFolders, sortColumn, sortDirection])
 
   // Calculate which tags are actually used in samples (for filtering tag pane)
   const usedTags = useMemo(() => {
@@ -193,6 +230,11 @@ export default function Browser() {
     // Filter tags to only those that are used
     return (tagsData?.tags || []).filter(tag => tagIds.has(tag.id))
   }, [samplesData, tagsData])
+
+  // Get all collections for filtering (show all collections, not just used ones)
+  const allCollectionsForFilter = useMemo(() => {
+    return collectionsData?.collections || []
+  }, [collectionsData])
 
   // Clear selected sample if it's no longer in visible samples due to folder filtering
   useEffect(() => {
@@ -250,6 +292,26 @@ export default function Browser() {
     }
   }
 
+  const handleCollectionClick = (collectionId, isRightClick = false) => {
+    if (isRightClick) {
+      // Right-click: toggle exclude
+      if (excludedCollections.includes(collectionId)) {
+        setExcludedCollections(excludedCollections.filter(id => id !== collectionId))
+      } else {
+        setExcludedCollections([...excludedCollections, collectionId])
+        setIncludedCollections(includedCollections.filter(id => id !== collectionId))
+      }
+    } else {
+      // Left-click: toggle include
+      if (includedCollections.includes(collectionId)) {
+        setIncludedCollections(includedCollections.filter(id => id !== collectionId))
+      } else {
+        setIncludedCollections([...includedCollections, collectionId])
+        setExcludedCollections(excludedCollections.filter(id => id !== collectionId))
+      }
+    }
+  }
+
   // Extract sample paths for folder tree (from tag-filtered samples)
   const samplePathsForFolderTree = useMemo(() => {
     return (samplesData?.samples || []).map(s => s.filepath).filter(Boolean)
@@ -296,6 +358,27 @@ export default function Browser() {
       setSelectedSamples(new Set())
     } catch (error) {
       console.error('Failed to update tags:', error)
+      // TODO: Show error message to user
+    }
+  }
+
+  const handleCollectionSave = async (addCollectionIds, removeCollectionIds) => {
+    const sampleIds = Array.from(selectedSamples)
+    console.log('Saving collection changes:', { sampleIds, addCollectionIds, removeCollectionIds })
+
+    try {
+      await bulkUpdateSampleCollections(sampleIds, addCollectionIds, removeCollectionIds)
+      console.log('Collections updated successfully')
+
+      // Refetch samples and collections to update the UI
+      await refetchSamples()
+      await refetchCollections()
+
+      // Close popup and clear selection
+      setIsCollectionPopupOpen(false)
+      setSelectedSamples(new Set())
+    } catch (error) {
+      console.error('Failed to update collections:', error)
       // TODO: Show error message to user
     }
   }
@@ -380,10 +463,16 @@ export default function Browser() {
         if (currentIndex >= 0) {
           rowVirtualizer.scrollToIndex(currentIndex, { align: 'center' })
         }
-      } else if (e.key === 'c' && selectedSamples.size > 0) {
-        // Open collection popup (TODO: future)
+      } else if (e.key === 'c' && (selectedSamples.size > 0 || selectedSample)) {
+        // Open collection popup - works with multi-select OR single sample in player
         e.preventDefault()
-        console.log('Open collection popup for', selectedSamples.size, 'samples')
+
+        // If single sample is playing, use that sample
+        if (selectedSample && selectedSamples.size === 0) {
+          setSelectedSamples(new Set([selectedSample.id]))
+        }
+
+        setIsCollectionPopupOpen(true)
       }
     }
 
@@ -414,6 +503,23 @@ export default function Browser() {
           isVisible={isLeftPaneVisible}
           onToggleVisibility={setIsLeftPaneVisible}
           showExclude={true}
+          collapsedIcon={TagIcon}
+        />
+
+        {/* Collections Filter Pane */}
+        <FilterPane
+          items={allCollectionsForFilter}
+          type="collections"
+          includedItems={includedCollections}
+          excludedItems={excludedCollections}
+          highlightedItems={selectedSample?.collections?.map(c => c.id) || []}
+          onItemClick={handleCollectionClick}
+          onRemoveIncluded={(collectionId) => setIncludedCollections(includedCollections.filter(id => id !== collectionId))}
+          onRemoveExcluded={(collectionId) => setExcludedCollections(excludedCollections.filter(id => id !== collectionId))}
+          isVisible={isCollectionPaneVisible}
+          onToggleVisibility={setIsCollectionPaneVisible}
+          showExclude={true}
+          collapsedIcon={CollectionIcon}
         />
 
         {/* Middle Pane - Folder Tree Filter */}
@@ -647,6 +753,16 @@ export default function Browser() {
         samples={samplesData?.samples || []}
         onSave={handleTagSave}
         onTagCreated={refetchTags}
+      />
+
+      <CollectionPopup
+        isOpen={isCollectionPopupOpen}
+        onClose={() => setIsCollectionPopupOpen(false)}
+        selectedSampleIds={Array.from(selectedSamples)}
+        allCollections={collectionsData?.collections || []}
+        samples={samplesData?.samples || []}
+        onSave={handleCollectionSave}
+        onCollectionCreated={refetchCollections}
       />
     </div>
   )

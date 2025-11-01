@@ -16,6 +16,7 @@ import { useMemo, useState } from 'react'
  * @param {Function} props.onToggleVisibility - Callback to toggle visibility
  * @param {string} props.getItemLabel - Function to get label from item (optional, defaults to item.name)
  * @param {string} props.getItemId - Function to get ID from item (optional, defaults to item.id)
+ * @param {React.Component} props.collapsedIcon - Icon component to show when collapsed (optional, defaults to TagIcon)
  */
 export default function FilterPane({
   items = [],
@@ -31,6 +32,7 @@ export default function FilterPane({
   getItemLabel = (item) => item.name,
   getItemId = (item) => item.id,
   showExclude = true,
+  collapsedIcon: CollapsedIcon = TagIcon,
 }) {
   const [searchQuery, setSearchQuery] = useState('')
 
@@ -204,7 +206,7 @@ export default function FilterPane({
         className="w-8 flex items-center justify-center bg-card/80 backdrop-blur-md rounded-lg border border-border hover:bg-accent transition-colors"
         title={`Show ${type} pane`}
       >
-        <TagIcon className="w-4 h-4" />
+        <CollapsedIcon className="w-4 h-4" />
       </button>
     )
   }

@@ -18,6 +18,13 @@ class Collection(BaseModel):
 
 class AddItemRequest(BaseModel):
     sample_id: int
+    alias: Optional[str] = None
+
+
+class BulkUpdateCollectionsRequest(BaseModel):
+    sample_ids: List[int]
+    add_collection_ids: List[int]  # Collections to add samples to
+    remove_collection_ids: List[int]  # Collections to remove samples from
 
 
 class ReorderRequest(BaseModel):
@@ -57,7 +64,7 @@ async def get_collection(collection_id: int):
         # Get samples in collection
         samples = conn.execute(
             """
-            SELECT s.*, ci.order_index
+            SELECT s.*, ci.order_index, ci.alias
             FROM samples s
             JOIN collection_items ci ON s.id = ci.sample_id
             WHERE ci.collection_id = ?
@@ -119,11 +126,11 @@ async def add_item_to_collection(collection_id: int, request: AddItemRequest):
         # Add item
         try:
             conn.execute(
-                "INSERT INTO collection_items (collection_id, sample_id, order_index) VALUES (?, ?, ?)",
-                (collection_id, request.sample_id, next_order),
+                "INSERT INTO collection_items (collection_id, sample_id, order_index, alias) VALUES (?, ?, ?, ?)",
+                (collection_id, request.sample_id, next_order, request.alias),
             )
             conn.commit()
-            return {"status": "added", "collection_id": collection_id, "sample_id": request.sample_id}
+            return {"status": "added", "collection_id": collection_id, "sample_id": request.sample_id, "alias": request.alias}
         except Exception as e:
             if "UNIQUE constraint failed" in str(e):
                 raise HTTPException(status_code=400, detail="Sample already in collection")
@@ -158,3 +165,78 @@ async def reorder_collection_items(collection_id: int, request: ReorderRequest):
         conn.commit()
 
         return {"status": "reordered", "collection_id": collection_id}
+
+
+@router.post("/bulk")
+async def bulk_update_sample_collections(request: BulkUpdateCollectionsRequest):
+    """
+    Bulk update collections for multiple samples
+
+    For each sample in sample_ids:
+    - Collections in add_collection_ids will have the sample added (if not already present)
+    - Collections in remove_collection_ids will have the sample removed (if present)
+    """
+    with db.get_connection() as conn:
+        # Verify all samples exist
+        placeholders = ",".join("?" * len(request.sample_ids))
+        cursor = conn.execute(f"SELECT id FROM samples WHERE id IN ({placeholders})", request.sample_ids)
+        existing_samples = {row["id"] for row in cursor.fetchall()}
+
+        if len(existing_samples) != len(request.sample_ids):
+            missing = set(request.sample_ids) - existing_samples
+            raise HTTPException(status_code=404, detail=f"Samples not found: {missing}")
+
+        added_count = 0
+        removed_count = 0
+
+        # Process additions
+        for sample_id in request.sample_ids:
+            for collection_id in request.add_collection_ids:
+                # Get next order index for this collection
+                max_order = conn.execute(
+                    "SELECT MAX(order_index) as max_order FROM collection_items WHERE collection_id = ?",
+                    (collection_id,)
+                ).fetchone()["max_order"]
+                next_order = (max_order or 0) + 1
+
+                try:
+                    conn.execute(
+                        "INSERT OR IGNORE INTO collection_items (collection_id, sample_id, order_index) VALUES (?, ?, ?)",
+                        (collection_id, sample_id, next_order),
+                    )
+                    if conn.total_changes > 0:
+                        added_count += 1
+                except Exception as e:
+                    raise HTTPException(status_code=400, detail=f"Error adding sample {sample_id} to collection {collection_id}: {str(e)}")
+
+        # Process removals
+        for sample_id in request.sample_ids:
+            for collection_id in request.remove_collection_ids:
+                cursor = conn.execute(
+                    "DELETE FROM collection_items WHERE collection_id = ? AND sample_id = ?",
+                    (collection_id, sample_id)
+                )
+                removed_count += cursor.rowcount
+
+        # Update timestamps for affected collections
+        all_collection_ids = set(request.add_collection_ids + request.remove_collection_ids)
+        if all_collection_ids:
+            placeholders = ",".join("?" * len(all_collection_ids))
+            conn.execute(
+                f"UPDATE collections SET updated_at = CURRENT_TIMESTAMP WHERE id IN ({placeholders})",
+                list(all_collection_ids)
+            )
+
+        conn.commit()
+
+        return {
+            "status": "success",
+            "samples_updated": len(request.sample_ids),
+            "items_added": added_count,
+            "items_removed": removed_count,
+            "details": {
+                "sample_ids": request.sample_ids,
+                "add_collection_ids": request.add_collection_ids,
+                "remove_collection_ids": request.remove_collection_ids
+            }
+        }

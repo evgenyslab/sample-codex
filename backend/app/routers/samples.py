@@ -101,6 +101,19 @@ async def list_samples(
             )
             sample['tags'] = [dict(row) for row in tags_cursor.fetchall()]
 
+            # Get collections for each sample
+            collections_cursor = conn.execute(
+                """
+                SELECT c.id, c.name, c.description, ci.alias
+                FROM collections c
+                JOIN collection_items ci ON c.id = ci.collection_id
+                WHERE ci.sample_id = ?
+                ORDER BY c.name
+                """,
+                (sample['id'],)
+            )
+            sample['collections'] = [dict(row) for row in collections_cursor.fetchall()]
+
         # Get total count with same filters
         if include_tag_ids or exclude_tag_ids:
             count_query = "SELECT COUNT(*) as total FROM samples s WHERE s.indexed = 1"
@@ -159,8 +172,21 @@ async def get_sample(sample_id: int):
             (sample_id,),
         ).fetchall()
 
+        # Get collections
+        collections = conn.execute(
+            """
+            SELECT c.id, c.name, c.description, ci.alias
+            FROM collections c
+            JOIN collection_items ci ON c.id = ci.collection_id
+            WHERE ci.sample_id = ?
+            ORDER BY c.name
+        """,
+            (sample_id,),
+        ).fetchall()
+
         result = dict(sample)
         result["tags"] = [dict(tag) for tag in tags]
+        result["collections"] = [dict(collection) for collection in collections]
 
         return result
 
