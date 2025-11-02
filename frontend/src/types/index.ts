@@ -3,6 +3,7 @@
 export interface Tag {
   id: number;
   name: string;
+  color: string | null;
 }
 
 export interface Collection {

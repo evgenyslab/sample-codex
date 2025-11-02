@@ -1,8 +1,11 @@
-import { useState, useEffect, useMemo } from 'react';
-import { X, Plus } from 'lucide-react';
-import { createTag } from '../../services/api';
-import type { Tag, Sample } from '../../types';
 import './TagPopup.css';
+
+import { Plus, X } from 'lucide-react';
+import type { Sample, Tag } from '../../types';
+import { TagFilledIcon, TagIcon } from '../ui/Icons';
+import { useEffect, useMemo, useState } from 'react';
+
+import { createTag } from '../../services/api';
 
 type TagState = 'checked' | 'unchecked' | 'indeterminate';
 
@@ -84,6 +87,25 @@ export default function TagPopup({
     const query = searchQuery.toLowerCase();
     return allTags.filter(tag => tag.name.toLowerCase().includes(query));
   }, [allTags, searchQuery]);
+
+  // Sorted tags by checkbox
+  const sortedTags = useMemo(() => {
+    return [...filteredTags].sort((a, b) => {
+    const stateA = tagStates[a.id] || 'unchecked';
+    const stateB = tagStates[b.id] || 'unchecked';
+    
+    // First sort by state
+    const order = { checked: 0, indeterminate: 1, unchecked: 2 };
+    const stateOrder = order[stateA] - order[stateB];
+    
+    // If same state, sort alphabetically by name
+    if (stateOrder === 0) {
+      return a.name.localeCompare(b.name);
+    }
+    
+    return stateOrder;
+  });
+  }, [filteredTags, tagStates]);
 
   // Check if search query could create a new tag
   const canCreateNewTag = useMemo(() => {
@@ -259,8 +281,8 @@ export default function TagPopup({
           )}
 
           {/* Existing tags */}
-          {filteredTags.length > 0 ? (
-            filteredTags.map(tag => {
+          {sortedTags.length > 0 ? (
+            sortedTags.map(tag => {
               const state = tagStates[tag.id] || 'unchecked';
               return (
                 <div
@@ -268,16 +290,15 @@ export default function TagPopup({
                   className="tag-item"
                   onClick={() => handleToggleTag(tag.id)}
                 >
-                  <input
-                    type="checkbox"
-                    checked={state === 'checked'}
-                    ref={el => {
-                      if (el) {
-                        el.indeterminate = state === 'indeterminate';
-                      }
-                    }}
-                    onChange={() => {}} // Handled by div onClick
-                  />
+                  <span>
+                  {state === 'checked' ? (
+                        <TagFilledIcon className="w-5 h-5 text-green-500" />
+                      ) : ( state === 'indeterminate' ? (
+                        <TagIcon className="w-5 h-5 text-yellow-500" />
+                      ) : (
+                        <TagIcon className="w-5 h-5 text-muted-foreground" />
+                      ))}
+                  </span>
                   <label className="tag-item-label">
                     {tag.color && (
                       <span

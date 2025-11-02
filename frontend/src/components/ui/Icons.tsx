@@ -13,6 +13,7 @@ import {
   IconSettings,
   IconSun,
   IconTag,
+  IconTagFilled,
   IconX
 } from '@tabler/icons-react';
 
@@ -35,6 +36,10 @@ export const FolderFilledIcon = ({ className = "w-4 h-4" }: IconProps) => (
 
 export const TagIcon = ({ className = "w-4 h-4" }: IconProps) => (
   <IconTag className={className} stroke={1.5} />
+);
+
+export const TagFilledIcon = ({ className = "w-4 h-4" }: IconProps) => (
+  <IconTagFilled className={className} stroke={1.5} />
 );
 
 export const CollectionIcon = ({ className = "w-4 h-4" }: IconProps) => (
