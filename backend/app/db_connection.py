@@ -22,10 +22,9 @@ def get_db_connection(request=None):
     """
     if DEMO_MODE and request and hasattr(request.state, "session_id"):
         return _db.get_connection(session_id=request.state.session_id)
-    elif DEMO_MODE:
+    if DEMO_MODE:
         return _db.get_connection(session_id="default")
-    else:
-        return _db.get_connection()
+    return _db.get_connection()
 
 
 # For backwards compatibility

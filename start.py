@@ -18,7 +18,6 @@ import argparse
 import os
 import subprocess
 import sys
-import signal
 import time
 from pathlib import Path
 
@@ -78,8 +77,7 @@ def check_dependencies():
     if not node_modules.exists():
         print_warning("Node dependencies missing. Run: npm install --prefix frontend")
         return False
-    else:
-        print_success("Node dependencies found")
+    print_success("Node dependencies found")
 
     return True
 
@@ -138,10 +136,9 @@ def build_frontend():
     if result.returncode == 0:
         print_success("Frontend build completed successfully")
         return True
-    else:
-        print_error("Frontend build failed")
-        print(result.stderr)
-        return False
+    print_error("Frontend build failed")
+    print(result.stderr)
+    return False
 
 def run_dev_mode():
     """Run both backend and frontend in development mode."""
@@ -160,7 +157,7 @@ def run_dev_mode():
             cwd=str(BACKEND_DIR)
         )
         processes.append(("backend", backend_process))
-        print_success("Backend server started (PID: {})".format(backend_process.pid))
+        print_success(f"Backend server started (PID: {backend_process.pid})")
 
         time.sleep(2)  # Give backend time to start
 
@@ -170,7 +167,7 @@ def run_dev_mode():
             cwd=str(FRONTEND_DIR)
         )
         processes.append(("frontend", frontend_process))
-        print_success("Frontend dev server started (PID: {})".format(frontend_process.pid))
+        print_success(f"Frontend dev server started (PID: {frontend_process.pid})")
 
         print_header("Both servers are running!")
         print_info("Backend: http://127.0.0.1:8000")

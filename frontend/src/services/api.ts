@@ -1,5 +1,5 @@
+import type { Collection, Folder, Sample, Tag } from '../types';
 import axios, { AxiosResponse } from 'axios';
-import type { Sample, Tag, Collection, Folder } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
@@ -46,7 +46,7 @@ interface AddTagsToSampleRequest {
 }
 
 interface BulkUpdateTagsRequest {
-  sample_ids: number[];
+  file_ids: number[];
   add_tag_ids: number[];
   remove_tag_ids: number[];
 }
@@ -67,7 +67,7 @@ interface AddItemToCollectionRequest {
 }
 
 interface BulkUpdateCollectionsRequest {
-  sample_ids: number[];
+  file_ids: number[];
   add_collection_ids: number[];
   remove_collection_ids: number[];
 }
@@ -145,7 +145,7 @@ export const bulkUpdateSampleTags = (
   removeTagIds: number[]
 ): Promise<AxiosResponse<{ message: string; updated_count: number }>> =>
   api.post('/tags/bulk', {
-    sample_ids: sampleIds,
+    file_ids: sampleIds,
     add_tag_ids: addTagIds,
     remove_tag_ids: removeTagIds,
   } as BulkUpdateTagsRequest);
@@ -185,7 +185,7 @@ export const bulkUpdateSampleCollections = (
   removeCollectionIds: number[]
 ): Promise<AxiosResponse<{ message: string; updated_count: number }>> =>
   api.post('/collections/bulk', {
-    sample_ids: sampleIds,
+    file_ids: sampleIds,
     add_collection_ids: addCollectionIds,
     remove_collection_ids: removeCollectionIds,
   } as BulkUpdateCollectionsRequest);

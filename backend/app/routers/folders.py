@@ -4,7 +4,7 @@ import asyncio
 import json
 import os
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
@@ -20,20 +20,20 @@ DEMO_MODE = os.getenv("DEMO_MODE", "false").lower() == "true"
 
 class FolderBrowseResponse(BaseModel):
     path: str
-    directories: List[str]
-    parent: Optional[str]
+    directories: list[str]
+    parent: str | None = None
 
 
 class ScannedFolder(BaseModel):
     id: int
     path: str
-    last_scanned: Optional[str]
-    sample_count: int
+    last_scanned: str | None = None
+    file_count: int
     status: str
 
 
 class ScanRequest(BaseModel):
-    paths: List[str]
+    paths: list[str]
 
 
 @router.get("/browse")
@@ -41,7 +41,7 @@ async def browse_filesystem(path: str = None) -> dict[str, Any]:
     """Browse filesystem directories"""
     # Disable in demo mode
     if DEMO_MODE:
-        raise HTTPException(status_code=403, detail="Folder browsing is disabled in demo mode.")
+        raise HTTPException(status_code=403, detail="Folder browsing is disabled in demo mode.") from None
 
     try:
         # Default to user's home directory
@@ -51,10 +51,10 @@ async def browse_filesystem(path: str = None) -> dict[str, Any]:
         target_path = Path(path).resolve()
 
         if not target_path.exists():
-            raise HTTPException(status_code=404, detail="Path does not exist")
+            raise HTTPException(status_code=404, detail="Path does not exist") from None
 
         if not target_path.is_dir():
-            raise HTTPException(status_code=400, detail="Path is not a directory")
+            raise HTTPException(status_code=400, detail="Path is not a directory") from None
 
         # Get directories only
         directories = []
@@ -63,14 +63,14 @@ async def browse_filesystem(path: str = None) -> dict[str, Any]:
                 if item.is_dir() and not item.name.startswith("."):
                     directories.append(item.name)
         except PermissionError:
-            raise HTTPException(status_code=403, detail="Permission denied")
+            raise HTTPException(status_code=403, detail="Permission denied") from PermissionError
 
         parent = str(target_path.parent) if target_path.parent != target_path else None
 
         return {"path": str(target_path), "directories": directories, "parent": parent}
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/scanned")
@@ -78,7 +78,7 @@ async def get_scanned_folders(request: Request):
     """Get all scanned folders"""
     with get_db_connection(request) as conn:
         cursor = conn.execute(
-            "SELECT id, path, last_scanned, sample_count, status FROM folders ORDER BY last_scanned DESC"
+            "SELECT id, path, last_scanned, file_count, status FROM folders ORDER BY last_scanned DESC"
         )
         folders = [dict(row) for row in cursor.fetchall()]
         return {"folders": folders}
@@ -174,8 +174,8 @@ async def websocket_scan_endpoint(websocket: WebSocket):
 
         # Get updated stats from database
         with db.get_connection() as conn:
-            # Get sample count
-            sample_count = conn.execute("SELECT COUNT(*) as count FROM samples").fetchone()["count"]
+            # Get file count
+            sample_count = conn.execute("SELECT COUNT(*) as count FROM files").fetchone()["count"]
 
             # Get tag count
             tag_count = conn.execute("SELECT COUNT(*) as count FROM tags").fetchone()["count"]
@@ -206,12 +206,12 @@ async def websocket_scan_endpoint(websocket: WebSocket):
         print("Client disconnected")
     except Exception as e:
         print(f"WebSocket error: {e}")
-        try:
+        try:  # noqa: SIM105
             await websocket.send_json({"type": "error", "message": str(e)})
-        except:
+        except Exception:
             pass
     finally:
-        try:
+        try:  # noqa: SIM105
             await websocket.close()
-        except:
+        except Exception:
             pass

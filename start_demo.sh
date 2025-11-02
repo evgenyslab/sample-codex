@@ -14,10 +14,9 @@ echo "  ✓ Sessions timeout after 1 hour of inactivity"
 echo "  ✓ Max 100 concurrent sessions (LRU eviction)"
 echo "  ✓ Folder scanning disabled"
 echo ""
-echo "Backend: http://localhost:8000"
-echo "Frontend: http://localhost:5173"
+echo "🌐 Demo Application: http://localhost:8001"
 echo ""
-echo "Press Ctrl+C to stop both servers"
+echo "Press Ctrl+C to stop the server"
 echo "============================================================"
 echo ""
 
@@ -30,29 +29,23 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # Function to cleanup background processes
 cleanup() {
     echo ""
-    echo "Stopping servers..."
-    kill $BACKEND_PID $FRONTEND_PID 2>/dev/null
+    echo "Stopping server..."
+    kill $BACKEND_PID 2>/dev/null
     exit 0
 }
 
 # Set trap to catch Ctrl+C
 trap cleanup INT TERM
 
-# Start backend in background
+# Start backend on port 8001 (serves both API and static frontend)
 cd "$SCRIPT_DIR/backend"
-python -m uvicorn app.main:app --reload --port 8000 &
+python -m uvicorn app.main:app --reload --port 8001 &
 BACKEND_PID=$!
-echo "Backend started (PID: $BACKEND_PID)"
-
-# Start frontend in background
-cd "$SCRIPT_DIR/frontend"
-npm run dev &
-FRONTEND_PID=$!
-echo "Frontend started (PID: $FRONTEND_PID)"
+echo "✓ Server started on port 8001 (PID: $BACKEND_PID)"
 
 echo ""
-echo "Both servers are running. Press Ctrl+C to stop."
+echo "Server is running. Open http://localhost:8001 in your browser."
 echo ""
 
-# Wait for both processes
+# Wait for the process
 wait

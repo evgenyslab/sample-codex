@@ -1,76 +1,76 @@
 """Search API endpoints"""
 
-from typing import Optional
-
 from fastapi import APIRouter, Request
 
 from app.config import ITEMS_PER_PAGE
-from app.db_connection import db, get_db_connection
+from app.db_connection import get_db_connection
 
 router = APIRouter()
 
 
 @router.get("")
-async def search_samples(
+async def search_files(
     request: Request,
-    q: Optional[str] = None,
-    tags: Optional[str] = None,  # Comma-separated tag IDs
+    q: str | None = None,
+    tags: str | None = None,  # Comma-separated tag IDs
     mode: str = "and",  # 'and' or 'or' for tag filtering
     page: int = 1,
     limit: int = ITEMS_PER_PAGE,
 ):
-    """Search samples by text and/or tags"""
+    """Search files by text and/or tags"""
     offset = (page - 1) * limit
 
     with get_db_connection(request) as conn:
         # Build base query
         if q and tags:
-            # Full-text search + tag filtering
+            # Text search + tag filtering
             tag_ids = [int(t) for t in tags.split(",")]
+            search_pattern = f"%{q}%"
 
             if mode == "and":
-                # Sample must have ALL specified tags
+                # File must have ALL specified tags and match text
                 query = """
-                    SELECT DISTINCT s.*
-                    FROM samples s
-                    JOIN samples_fts fts ON s.id = fts.rowid
-                    WHERE fts MATCH ?
-                    AND s.id IN (
-                        SELECT sample_id
-                        FROM sample_tags
+                    SELECT DISTINCT f.*
+                    FROM files f
+                    JOIN file_locations fl ON f.id = fl.file_id
+                    WHERE (fl.file_name LIKE ? OR fl.file_path LIKE ? OR f.alias LIKE ?)
+                    AND f.id IN (
+                        SELECT file_id
+                        FROM file_tags
                         WHERE tag_id IN ({})
-                        GROUP BY sample_id
+                        GROUP BY file_id
                         HAVING COUNT(DISTINCT tag_id) = ?
                     )
-                    ORDER BY s.filename
+                    ORDER BY fl.file_name
                     LIMIT ? OFFSET ?
                 """.format(",".join("?" * len(tag_ids)))
-                params = [q] + tag_ids + [len(tag_ids), limit, offset]
+                params = [search_pattern, search_pattern, search_pattern] + tag_ids + [len(tag_ids), limit, offset]
             else:
-                # Sample must have ANY of the specified tags
+                # File must have ANY of the specified tags and match text
                 query = """
-                    SELECT DISTINCT s.*
-                    FROM samples s
-                    JOIN samples_fts fts ON s.id = fts.rowid
-                    JOIN sample_tags st ON s.id = st.sample_id
-                    WHERE fts MATCH ?
-                    AND st.tag_id IN ({})
-                    ORDER BY s.filename
+                    SELECT DISTINCT f.*
+                    FROM files f
+                    JOIN file_locations fl ON f.id = fl.file_id
+                    JOIN file_tags ft ON f.id = ft.file_id
+                    WHERE (fl.file_name LIKE ? OR fl.file_path LIKE ? OR f.alias LIKE ?)
+                    AND ft.tag_id IN ({})
+                    ORDER BY fl.file_name
                     LIMIT ? OFFSET ?
                 """.format(",".join("?" * len(tag_ids)))
-                params = [q] + tag_ids + [limit, offset]
+                params = [search_pattern, search_pattern, search_pattern] + tag_ids + [limit, offset]
 
         elif q:
-            # Text search only
+            # Text search only (search in filename, path, and alias)
+            search_pattern = f"%{q}%"
             query = """
-                SELECT s.*
-                FROM samples s
-                JOIN samples_fts fts ON s.id = fts.rowid
-                WHERE fts MATCH ?
-                ORDER BY s.filename
+                SELECT DISTINCT f.*
+                FROM files f
+                JOIN file_locations fl ON f.id = fl.file_id
+                WHERE fl.file_name LIKE ? OR fl.file_path LIKE ? OR f.alias LIKE ?
+                ORDER BY fl.file_name
                 LIMIT ? OFFSET ?
             """
-            params = [q, limit, offset]
+            params = [search_pattern, search_pattern, search_pattern, limit, offset]
 
         elif tags:
             # Tag filtering only
@@ -78,43 +78,52 @@ async def search_samples(
 
             if mode == "and":
                 query = """
-                    SELECT s.*
-                    FROM samples s
-                    WHERE s.id IN (
-                        SELECT sample_id
-                        FROM sample_tags
+                    SELECT DISTINCT f.*
+                    FROM files f
+                    JOIN file_locations fl ON f.id = fl.file_id
+                    WHERE f.id IN (
+                        SELECT file_id
+                        FROM file_tags
                         WHERE tag_id IN ({})
-                        GROUP BY sample_id
+                        GROUP BY file_id
                         HAVING COUNT(DISTINCT tag_id) = ?
                     )
-                    ORDER BY s.filename
+                    ORDER BY fl.file_name
                     LIMIT ? OFFSET ?
                 """.format(",".join("?" * len(tag_ids)))
                 params = tag_ids + [len(tag_ids), limit, offset]
             else:
                 query = """
-                    SELECT DISTINCT s.*
-                    FROM samples s
-                    JOIN sample_tags st ON s.id = st.sample_id
-                    WHERE st.tag_id IN ({})
-                    ORDER BY s.filename
+                    SELECT DISTINCT f.*
+                    FROM files f
+                    JOIN file_locations fl ON f.id = fl.file_id
+                    JOIN file_tags ft ON f.id = ft.file_id
+                    WHERE ft.tag_id IN ({})
+                    ORDER BY fl.file_name
                     LIMIT ? OFFSET ?
                 """.format(",".join("?" * len(tag_ids)))
                 params = tag_ids + [limit, offset]
 
         else:
-            # No search criteria - return all
-            query = "SELECT * FROM samples ORDER BY filename LIMIT ? OFFSET ?"
+            # No search criteria - return all files
+            query = """
+                SELECT DISTINCT f.*
+                FROM files f
+                JOIN file_locations fl ON f.id = fl.file_id
+                WHERE fl.is_primary = 1
+                ORDER BY fl.file_name
+                LIMIT ? OFFSET ?
+            """
             params = [limit, offset]
 
         cursor = conn.execute(query, params)
-        samples = [dict(row) for row in cursor.fetchall()]
+        files = [dict(row) for row in cursor.fetchall()]
 
         # Get total count (simplified for MVP)
-        total = len(samples)
+        total = len(files)
 
         return {
-            "samples": samples,
+            "files": files,
             "pagination": {"page": page, "limit": limit, "total": total},
             "query": q,
             "tags": tags,

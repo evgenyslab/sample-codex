@@ -32,7 +32,7 @@ def scan_demo_files() -> list[dict]:
     samples = []
 
     # Walk through all subdirectories
-    for root, dirs, files in os.walk(demo_path):
+    for root, _, files in os.walk(demo_path):
         root_path = Path(root)
 
         for filename in files:
@@ -54,7 +54,7 @@ def scan_demo_files() -> list[dict]:
             # Try to get basic file info
             try:
                 file_size = full_path.stat().st_size
-            except:
+            except Exception:
                 file_size = 0
 
             # Try to extract audio metadata (will be enhanced with librosa if available)
@@ -65,7 +65,6 @@ def scan_demo_files() -> list[dict]:
 
             # Try using librosa for metadata (optional)
             try:
-                import librosa
                 import soundfile as sf
 
                 # Use soundfile for faster metadata reading
@@ -110,7 +109,6 @@ def get_demo_folders(samples: list[dict]) -> list[dict]:
         list of folder dicts with path and sample count
     """
     folder_counts = {}
-    demo_root = get_demo_audio_path()
 
     for sample in samples:
         # Extract folder path from sample filepath

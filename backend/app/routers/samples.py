@@ -2,14 +2,13 @@
 
 import os
 from pathlib import Path
-from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from app.config import ITEMS_PER_PAGE
-from app.db_connection import db, get_db_connection
+from app.db_connection import get_db_connection
 
 router = APIRouter()
 
@@ -20,31 +19,32 @@ if DEMO_MODE:
     from app.demo.scanner import get_demo_audio_path
 
 
-class Sample(BaseModel):
+class File(BaseModel):
     id: int
-    filepath: str
-    filename: str
-    file_size: Optional[int]
-    duration: Optional[float]
-    sample_rate: Optional[int]
-    format: Optional[str]
-    channels: Optional[int]
+    file_hash: str
+    format: str
+    file_size: int | None = None
+    duration: float | None = None
+    sample_rate: int | None = None
+    bit_depth: int | None = None
+    channels: int | None = None
+    alias: str | None = None
 
 
-class SampleUpdate(BaseModel):
-    filename: Optional[str] = None
+class FileUpdate(BaseModel):
+    alias: str | None = None
 
 
 @router.get("")
-async def list_samples(
+async def list_files(
     request: Request,
     page: int = 1,
     limit: int = ITEMS_PER_PAGE,
-    folder_id: Optional[int] = None,
-    tags: Optional[str] = None,
-    exclude_tags: Optional[str] = None,
+    folder_id: int | None = None,
+    tags: str | None = None,
+    exclude_tags: str | None = None,
 ):
-    """List samples with pagination and optional filtering by folder and tags"""
+    """List files with pagination and optional filtering by folder and tags"""
     offset = (page - 1) * limit
 
     with get_db_connection(request) as conn:
@@ -52,165 +52,200 @@ async def list_samples(
         include_tag_ids = [int(tid) for tid in tags.split(",")] if tags else []
         exclude_tag_ids = [int(tid) for tid in exclude_tags.split(",")] if exclude_tags else []
 
-        # Build query
+        # Build query - join files with file_locations
         if include_tag_ids or exclude_tag_ids:
-            # Use subquery to filter by tags
-            query = "SELECT s.* FROM samples s WHERE s.indexed = 1"
+            # Use subquery to filter by tags, inner join on file_location will only
+            # return files that have locations.
+            query = """
+                SELECT DISTINCT f.*, fl.file_path as filepath, fl.file_name as filename
+                FROM files f
+                JOIN file_locations fl ON f.id = fl.file_id AND fl.is_primary = 1
+                WHERE f.indexed = 1
+            """
             params = []
 
-            # Include tags filter (sample must have ALL included tags)
+            # Include tags filter (file must have ALL included tags)
             if include_tag_ids:
                 for tag_id in include_tag_ids:
-                    query += f" AND EXISTS (SELECT 1 FROM sample_tags st WHERE st.sample_id = s.id AND st.tag_id = ?)"
+                    query += " AND EXISTS (SELECT 1 FROM file_tags ft WHERE ft.file_id = f.id AND ft.tag_id = ?)"
                     params.append(tag_id)
 
-            # Exclude tags filter (sample must NOT have ANY excluded tags)
+            # Exclude tags filter (file must NOT have ANY excluded tags)
             if exclude_tag_ids:
                 placeholders = ",".join("?" * len(exclude_tag_ids))
-                query += f" AND NOT EXISTS (SELECT 1 FROM sample_tags st WHERE st.sample_id = s.id AND st.tag_id IN ({placeholders}))"
+                query += f" AND NOT EXISTS (SELECT 1 FROM file_tags ft WHERE ft.file_id = f.id AND ft.tag_id IN ({placeholders}))"
                 params.extend(exclude_tag_ids)
 
             if folder_id:
                 folder = conn.execute("SELECT path FROM folders WHERE id = ?", (folder_id,)).fetchone()
                 if folder:
-                    query += " AND s.filepath LIKE ?"
+                    query += " AND fl.file_path LIKE ?"
                     params.append(f"{folder['path']}%")
 
-            query += " ORDER BY s.filename LIMIT ? OFFSET ?"
+            query += " ORDER BY fl.file_name LIMIT ? OFFSET ?"
             params.extend([limit, offset])
         else:
             # No tag filtering - simpler query
-            query = "SELECT * FROM samples WHERE indexed = 1"
+            query = """
+                SELECT DISTINCT f.*, fl.file_path as filepath, fl.file_name as filename
+                FROM files f
+                JOIN file_locations fl ON f.id = fl.file_id AND fl.is_primary = 1
+                WHERE f.indexed = 1
+            """
             params = []
 
             if folder_id:
                 folder = conn.execute("SELECT path FROM folders WHERE id = ?", (folder_id,)).fetchone()
                 if folder:
-                    query += " AND filepath LIKE ?"
+                    query += " AND fl.file_path LIKE ?"
                     params.append(f"{folder['path']}%")
 
-            query += " ORDER BY filename LIMIT ? OFFSET ?"
+            query += " ORDER BY fl.file_name LIMIT ? OFFSET ?"
             params.extend([limit, offset])
 
         cursor = conn.execute(query, params)
-        samples = [dict(row) for row in cursor.fetchall()]
+        files = [dict(row) for row in cursor.fetchall()]
 
-        # Get tags for each sample
-        for sample in samples:
+        # Get tags for each file
+        for file in files:
             tags_cursor = conn.execute(
                 """
-                SELECT t.id, t.name, t.color, st.confidence
+                SELECT t.id, t.name, t.color, ft.confidence
                 FROM tags t
-                JOIN sample_tags st ON t.id = st.tag_id
-                WHERE st.sample_id = ?
+                JOIN file_tags ft ON t.id = ft.tag_id
+                WHERE ft.file_id = ?
                 ORDER BY t.name
                 """,
-                (sample["id"],),
+                (file["id"],),
             )
-            sample["tags"] = [dict(row) for row in tags_cursor.fetchall()]
+            file["tags"] = [dict(row) for row in tags_cursor.fetchall()]
 
-            # Get collections for each sample
+            # Get collections for each file
             collections_cursor = conn.execute(
                 """
-                SELECT c.id, c.name, c.description, ci.alias
+                SELECT c.id, c.name, c.description
                 FROM collections c
                 JOIN collection_items ci ON c.id = ci.collection_id
-                WHERE ci.sample_id = ?
+                WHERE ci.file_id = ?
                 ORDER BY c.name
                 """,
-                (sample["id"],),
+                (file["id"],),
             )
-            sample["collections"] = [dict(row) for row in collections_cursor.fetchall()]
+            file["collections"] = [dict(row) for row in collections_cursor.fetchall()]
 
         # Get total count with same filters
         if include_tag_ids or exclude_tag_ids:
-            count_query = "SELECT COUNT(*) as total FROM samples s WHERE s.indexed = 1"
+            count_query = """
+                SELECT COUNT(DISTINCT f.id) as total
+                FROM files f
+                JOIN file_locations fl ON f.id = fl.file_id AND fl.is_primary = 1
+                WHERE f.indexed = 1
+            """
             count_params = []
 
             if include_tag_ids:
                 for tag_id in include_tag_ids:
-                    count_query += (
-                        f" AND EXISTS (SELECT 1 FROM sample_tags st WHERE st.sample_id = s.id AND st.tag_id = ?)"
-                    )
+                    count_query += " AND EXISTS (SELECT 1 FROM file_tags ft WHERE ft.file_id = f.id AND ft.tag_id = ?)"
                     count_params.append(tag_id)
 
             if exclude_tag_ids:
                 placeholders = ",".join("?" * len(exclude_tag_ids))
-                count_query += f" AND NOT EXISTS (SELECT 1 FROM sample_tags st WHERE st.sample_id = s.id AND st.tag_id IN ({placeholders}))"
+                count_query += f" AND NOT EXISTS (SELECT 1 FROM file_tags ft WHERE ft.file_id = f.id AND ft.tag_id IN ({placeholders}))"
                 count_params.extend(exclude_tag_ids)
 
             if folder_id:
                 folder = conn.execute("SELECT path FROM folders WHERE id = ?", (folder_id,)).fetchone()
                 if folder:
-                    count_query += " AND s.filepath LIKE ?"
+                    count_query += " AND fl.file_path LIKE ?"
                     count_params.append(f"{folder['path']}%")
         else:
-            count_query = "SELECT COUNT(*) as total FROM samples WHERE indexed = 1"
+            count_query = """
+                SELECT COUNT(DISTINCT f.id) as total
+                FROM files f
+                JOIN file_locations fl ON f.id = fl.file_id AND fl.is_primary = 1
+                WHERE f.indexed = 1
+            """
             count_params = []
             if folder_id:
                 folder = conn.execute("SELECT path FROM folders WHERE id = ?", (folder_id,)).fetchone()
                 if folder:
-                    count_query += " AND filepath LIKE ?"
+                    count_query += " AND fl.file_path LIKE ?"
                     count_params.append(f"{folder['path']}%")
 
         total = conn.execute(count_query, count_params).fetchone()["total"]
 
         return {
-            "samples": samples,
+            "samples": files,
             "pagination": {"page": page, "limit": limit, "total": total, "pages": (total + limit - 1) // limit},
         }
 
 
-@router.get("/{sample_id}")
-async def get_sample(request: Request, sample_id: int):
-    """Get sample details including tags"""
+@router.get("/{file_id}")
+async def get_file(request: Request, file_id: int):
+    """Get file details including tags and locations"""
     with get_db_connection(request) as conn:
-        # Get sample
-        sample = conn.execute("SELECT * FROM samples WHERE id = ?", (sample_id,)).fetchone()
+        # Get file with primary location
+        file = conn.execute(
+            """
+            SELECT f.*, fl.file_path as filepath, fl.file_name as filename
+            FROM files f
+            JOIN file_locations fl ON f.id = fl.file_id AND fl.is_primary = 1
+            WHERE f.id = ?
+            """,
+            (file_id,),
+        ).fetchone()
 
-        if not sample:
-            raise HTTPException(status_code=404, detail="Sample not found")
+        if not file:
+            raise HTTPException(status_code=404, detail="File not found")
 
         # Get tags
         tags = conn.execute(
             """
-            SELECT t.id, t.name, t.color, st.confidence
+            SELECT t.id, t.name, t.color, ft.confidence
             FROM tags t
-            JOIN sample_tags st ON t.id = st.tag_id
-            WHERE st.sample_id = ?
+            JOIN file_tags ft ON t.id = ft.tag_id
+            WHERE ft.file_id = ?
         """,
-            (sample_id,),
+            (file_id,),
         ).fetchall()
 
         # Get collections
         collections = conn.execute(
             """
-            SELECT c.id, c.name, c.description, ci.alias
+            SELECT c.id, c.name, c.description
             FROM collections c
             JOIN collection_items ci ON c.id = ci.collection_id
-            WHERE ci.sample_id = ?
+            WHERE ci.file_id = ?
             ORDER BY c.name
         """,
-            (sample_id,),
+            (file_id,),
         ).fetchall()
 
-        result = dict(sample)
+        result = dict(file)
         result["tags"] = [dict(tag) for tag in tags]
         result["collections"] = [dict(collection) for collection in collections]
 
         return result
 
 
-@router.get("/{sample_id}/audio")
-async def stream_audio(request: Request, sample_id: int):
+@router.get("/{file_id}/audio")
+async def stream_audio(request: Request, file_id: int):
     """Stream audio file for playback"""
     with get_db_connection(request) as conn:
-        sample = conn.execute("SELECT filepath, format FROM samples WHERE id = ?", (sample_id,)).fetchone()
+        file = conn.execute(
+            """
+            SELECT f.format, fl.file_path
+            FROM files f
+            JOIN file_locations fl ON f.id = fl.file_id AND fl.is_primary = 1
+            WHERE f.id = ?
+            """,
+            (file_id,),
+        ).fetchone()
 
-        if not sample:
-            raise HTTPException(status_code=404, detail="Sample not found")
+        if not file:
+            raise HTTPException(status_code=404, detail="File not found")
 
-        filepath_str = sample["filepath"]
+        filepath_str = file["file_path"]
 
         # In demo mode, serve from demo audio folder
         if DEMO_MODE and filepath_str.startswith("/demo/audio/"):
@@ -233,7 +268,7 @@ async def stream_audio(request: Request, sample_id: int):
             "ogg": "audio/ogg",
             "m4a": "audio/mp4",
         }
-        media_type = format_to_mime.get(sample["format"], "audio/*")
+        media_type = format_to_mime.get(file["format"].replace(".", ""), "audio/*")
 
         return FileResponse(
             filepath,
@@ -248,40 +283,40 @@ async def stream_audio(request: Request, sample_id: int):
         )
 
 
-@router.put("/{sample_id}")
-async def update_sample(request: Request, sample_id: int, update: SampleUpdate):
-    """Update sample metadata"""
+@router.put("/{file_id}")
+async def update_file(request: Request, file_id: int, update: FileUpdate):
+    """Update file metadata (alias)"""
     with get_db_connection(request) as conn:
         fields = []
         params = []
 
-        if update.filename:
-            fields.append("filename = ?")
-            params.append(update.filename)
+        if update.alias is not None:
+            fields.append("alias = ?")
+            params.append(update.alias)
 
         if not fields:
             return {"status": "no changes"}
 
-        params.append(sample_id)
-        query = f"UPDATE samples SET {', '.join(fields)} WHERE id = ?"
+        params.append(file_id)
+        query = f"UPDATE files SET {', '.join(fields)} WHERE id = ?"
 
         cursor = conn.execute(query, params)
         conn.commit()
 
         if cursor.rowcount == 0:
-            raise HTTPException(status_code=404, detail="Sample not found")
+            raise HTTPException(status_code=404, detail="File not found")
 
-        return {"status": "updated", "id": sample_id}
+        return {"status": "updated", "id": file_id}
 
 
-@router.delete("/{sample_id}")
-async def delete_sample(request: Request, sample_id: int):
-    """Delete sample record"""
+@router.delete("/{file_id}")
+async def delete_file(request: Request, file_id: int):
+    """Delete file record (cascades to locations, tags, etc.)"""
     with get_db_connection(request) as conn:
-        cursor = conn.execute("DELETE FROM samples WHERE id = ?", (sample_id,))
+        cursor = conn.execute("DELETE FROM files WHERE id = ?", (file_id,))
         conn.commit()
 
         if cursor.rowcount == 0:
-            raise HTTPException(status_code=404, detail="Sample not found")
+            raise HTTPException(status_code=404, detail="File not found")
 
-        return {"status": "deleted", "id": sample_id}
+        return {"status": "deleted", "id": file_id}

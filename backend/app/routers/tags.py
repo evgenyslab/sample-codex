@@ -1,32 +1,30 @@
 """Tag management API endpoints"""
 
-from typing import List, Optional
-
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from app.db_connection import db, get_db_connection
+from app.db_connection import get_db_connection
 
 router = APIRouter()
 
 
 class Tag(BaseModel):
-    id: Optional[int] = None
+    id: int | None = None
     name: str
-    color: Optional[str] = None
+    color: str | None = None
     auto_generated: bool = False
     is_system: bool = False
 
 
 class AddTagsRequest(BaseModel):
-    tag_ids: List[int]
+    tag_ids: list[int]
     confidence: float = 1.0
 
 
 class BulkUpdateTagsRequest(BaseModel):
-    sample_ids: List[int]
-    add_tag_ids: List[int] = []
-    remove_tag_ids: List[int] = []
+    file_ids: list[int]
+    add_tag_ids: list[int] = []
+    remove_tag_ids: list[int] = []
 
 
 @router.get("")
@@ -51,8 +49,8 @@ async def create_tag(request: Request, tag: Tag):
             return {"id": cursor.lastrowid, **tag.dict()}
         except Exception as e:
             if "UNIQUE constraint failed" in str(e):
-                raise HTTPException(status_code=400, detail="Tag already exists")
-            raise HTTPException(status_code=500, detail=str(e))
+                raise HTTPException(status_code=400, detail="Tag already exists") from e
+            raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.put("/{tag_id}")
@@ -101,94 +99,94 @@ async def delete_tag(request: Request, tag_id: int):
         return {"status": "deleted", "id": tag_id}
 
 
-@router.post("/samples/{sample_id}/tags")
-async def add_tags_to_sample(request: Request, sample_id: int, add_request: AddTagsRequest):
-    """Add tags to a sample"""
+@router.post("/files/{file_id}/tags")
+async def add_tags_to_file(request: Request, file_id: int, add_request: AddTagsRequest):
+    """Add tags to a file"""
     with get_db_connection(request) as conn:
-        # Verify sample exists
-        sample = conn.execute("SELECT id FROM samples WHERE id = ?", (sample_id,)).fetchone()
-        if not sample:
-            raise HTTPException(status_code=404, detail="Sample not found")
+        # Verify file exists
+        file = conn.execute("SELECT id FROM files WHERE id = ?", (file_id,)).fetchone()
+        if not file:
+            raise HTTPException(status_code=404, detail="File not found")
 
         # Add tags
         for tag_id in add_request.tag_ids:
             try:
                 conn.execute(
-                    "INSERT OR IGNORE INTO sample_tags (sample_id, tag_id, confidence) VALUES (?, ?, ?)",
-                    (sample_id, tag_id, add_request.confidence),
+                    "INSERT OR IGNORE INTO file_tags (file_id, tag_id, confidence) VALUES (?, ?, ?)",
+                    (file_id, tag_id, add_request.confidence),
                 )
             except Exception as e:
-                raise HTTPException(status_code=400, detail=f"Error adding tag {tag_id}: {str(e)}")
+                raise HTTPException(status_code=400, detail=f"Error adding tag {tag_id}: {str(e)}") from e
 
         conn.commit()
-        return {"status": "tags added", "sample_id": sample_id, "tag_ids": add_request.tag_ids}
+        return {"status": "tags added", "file_id": file_id, "tag_ids": add_request.tag_ids}
 
 
-@router.delete("/samples/{sample_id}/tags/{tag_id}")
-async def remove_tag_from_sample(request: Request, sample_id: int, tag_id: int):
-    """Remove tag from sample"""
+@router.delete("/files/{file_id}/tags/{tag_id}")
+async def remove_tag_from_file(request: Request, file_id: int, tag_id: int):
+    """Remove tag from file"""
     with get_db_connection(request) as conn:
-        cursor = conn.execute("DELETE FROM sample_tags WHERE sample_id = ? AND tag_id = ?", (sample_id, tag_id))
+        cursor = conn.execute("DELETE FROM file_tags WHERE file_id = ? AND tag_id = ?", (file_id, tag_id))
         conn.commit()
 
         if cursor.rowcount == 0:
             raise HTTPException(status_code=404, detail="Tag assignment not found")
 
-        return {"status": "tag removed", "sample_id": sample_id, "tag_id": tag_id}
+        return {"status": "tag removed", "file_id": file_id, "tag_id": tag_id}
 
 
 @router.post("/bulk")
-async def bulk_update_sample_tags(request: Request, bulk_request: BulkUpdateTagsRequest):
+async def bulk_update_file_tags(request: Request, bulk_request: BulkUpdateTagsRequest):
     """
-    Bulk update tags for multiple samples
+    Bulk update tags for multiple files
 
-    Cleanly identifies which tags to add to which samples and which tags to remove from which samples.
-    For each sample in sample_ids:
+    Cleanly identifies which tags to add to which files and which tags to remove from which files.
+    For each file in file_ids:
     - Tags in add_tag_ids will be added (if not already present)
     - Tags in remove_tag_ids will be removed (if present)
     """
     with get_db_connection(request) as conn:
-        # Verify all samples exist
-        placeholders = ",".join("?" * len(bulk_request.sample_ids))
-        cursor = conn.execute(f"SELECT id FROM samples WHERE id IN ({placeholders})", bulk_request.sample_ids)
-        existing_samples = {row["id"] for row in cursor.fetchall()}
+        # Verify all files exist
+        placeholders = ",".join("?" * len(bulk_request.file_ids))
+        cursor = conn.execute(f"SELECT id FROM files WHERE id IN ({placeholders})", bulk_request.file_ids)
+        existing_files = {row["id"] for row in cursor.fetchall()}
 
-        if len(existing_samples) != len(bulk_request.sample_ids):
-            missing = set(bulk_request.sample_ids) - existing_samples
-            raise HTTPException(status_code=404, detail=f"Samples not found: {missing}")
+        if len(existing_files) != len(bulk_request.file_ids):
+            missing = set(bulk_request.file_ids) - existing_files
+            raise HTTPException(status_code=404, detail=f"Files not found: {missing}")
 
         # Process tag additions
         added_count = 0
-        for sample_id in bulk_request.sample_ids:
+        for file_id in bulk_request.file_ids:
             for tag_id in bulk_request.add_tag_ids:
                 try:
                     conn.execute(
-                        "INSERT OR IGNORE INTO sample_tags (sample_id, tag_id, confidence) VALUES (?, ?, ?)",
-                        (sample_id, tag_id, 1.0),
+                        "INSERT OR IGNORE INTO file_tags (file_id, tag_id, confidence) VALUES (?, ?, ?)",
+                        (file_id, tag_id, 1.0),
                     )
                     if conn.total_changes > 0:
                         added_count += 1
                 except Exception as e:
                     raise HTTPException(
-                        status_code=400, detail=f"Error adding tag {tag_id} to sample {sample_id}: {str(e)}"
-                    )
+                        status_code=400, detail=f"Error adding tag {tag_id} to file {file_id}: {str(e)}"
+                    ) from e
 
         # Process tag removals
         removed_count = 0
-        for sample_id in bulk_request.sample_ids:
+        for file_id in bulk_request.file_ids:
             for tag_id in bulk_request.remove_tag_ids:
-                cursor = conn.execute("DELETE FROM sample_tags WHERE sample_id = ? AND tag_id = ?", (sample_id, tag_id))
+                cursor = conn.execute("DELETE FROM file_tags WHERE file_id = ? AND tag_id = ?", (file_id, tag_id))
                 removed_count += cursor.rowcount
 
         conn.commit()
 
         return {
             "status": "success",
-            "samples_updated": len(bulk_request.sample_ids),
+            "files_updated": len(bulk_request.file_ids),
             "tags_added": added_count,
             "tags_removed": removed_count,
             "details": {
-                "sample_ids": bulk_request.sample_ids,
+                "file_ids": bulk_request.file_ids,
                 "add_tag_ids": bulk_request.add_tag_ids,
                 "remove_tag_ids": bulk_request.remove_tag_ids,
             },

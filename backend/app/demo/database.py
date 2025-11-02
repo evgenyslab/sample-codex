@@ -4,7 +4,6 @@ import logging
 import sqlite3
 import time
 from collections import OrderedDict
-from typing import Dict, Optional
 
 from app.demo.generator import generate_demo_database
 
@@ -29,12 +28,12 @@ class DemoSessionDatabase:
     def __init__(self, max_sessions: int = MAX_SESSIONS, session_timeout: int = SESSION_TIMEOUT):
         self.max_sessions = max_sessions
         self.session_timeout = session_timeout
-        self.sessions: OrderedDict[str, Dict] = OrderedDict()
+        self.sessions: OrderedDict[str, dict] = OrderedDict()
         self.last_cleanup = time.time()
 
         logger.info(f"Demo database manager initialized (max_sessions={max_sessions}, timeout={session_timeout}s)")
 
-    def get_connection(self, session_id: str = "default", **kwargs) -> sqlite3.Connection:
+    def get_connection(self, session_id: str = "default") -> sqlite3.Connection:
         """
         Get or create a database connection for the given session
 
@@ -146,7 +145,7 @@ class DemoSessionDatabase:
         if stale_sessions:
             logger.info(f"Cleanup complete: removed {len(stale_sessions)} stale sessions, {len(self.sessions)} active")
 
-    def get_stats(self) -> Dict:
+    def get_stats(self) -> dict:
         """Get current statistics about demo sessions"""
         return {
             "active_sessions": len(self.sessions),
@@ -157,9 +156,9 @@ class DemoSessionDatabase:
     def clear_all_data(self) -> bool:
         """Clear all demo sessions (for admin use)"""
         for session_data in self.sessions.values():
-            try:
+            try:  # noqa: SIM105
                 session_data["conn"].close()
-            except:
+            except Exception:
                 pass
 
         self.sessions.clear()

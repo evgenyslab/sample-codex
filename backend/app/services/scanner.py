@@ -3,8 +3,9 @@
 import hashlib
 import logging
 import os
+import sqlite3
 from pathlib import Path
-from typing import Callable, Dict, List, Optional
+from typing import Callable
 
 from mutagen import File as MutagenFile
 
@@ -27,7 +28,7 @@ def get_file_hash(filepath: str) -> str:
         return ""
 
 
-def extract_audio_metadata(filepath: Path) -> Dict:
+def extract_audio_metadata(filepath: Path) -> dict:
     """Extract audio metadata using mutagen"""
     try:
         audio = MutagenFile(str(filepath))
@@ -65,7 +66,7 @@ def extract_audio_metadata(filepath: Path) -> Dict:
         return {}
 
 
-def scan_for_files(folder_paths: List[str], progress_callback: Optional[Callable] = None) -> List[Path]:
+def scan_for_files(folder_paths: list[str], progress_callback: Callable | None = None) -> list[Path]:
     """
     Phase 1: Scan folders for audio files
     Returns list of all valid audio file paths found
@@ -110,10 +111,10 @@ def scan_for_files(folder_paths: List[str], progress_callback: Optional[Callable
     return all_audio_files
 
 
-def process_files(audio_files: List[Path], folder_paths: List[str], progress_callback: Optional[Callable] = None) -> Dict:
+def process_files(audio_files: list[Path], folder_paths: list[str], progress_callback: Callable | None = None) -> dict:
     """
     Phase 2: Process audio files and extract metadata
-    Bulk updates the database
+    Hash-based insertion: same hash = same file, multiple locations possible
     """
     stats = {"total": len(audio_files), "added": 0, "skipped": 0, "errors": 0}
 
@@ -121,31 +122,38 @@ def process_files(audio_files: List[Path], folder_paths: List[str], progress_cal
     total_files = len(audio_files)
 
     with db.get_connection() as conn:
-        # Get existing files to avoid duplicates
+        # Get existing file paths to avoid re-processing same location
         existing_paths = set()
-        cursor = conn.execute("SELECT filepath FROM samples")
+        cursor = conn.execute("SELECT file_path FROM file_locations")
         for row in cursor.fetchall():
-            existing_paths.add(row["filepath"])
+            existing_paths.add(row["file_path"])
 
         # Process each file
         for idx, filepath in enumerate(audio_files):
             try:
-                # Skip if already exists
-                if str(filepath) in existing_paths:
+                filepath_str = str(filepath)
+
+                # Skip if this exact path already exists
+                if filepath_str in existing_paths:
                     stats["skipped"] += 1
                     continue
 
                 # Get file info
                 file_stat = filepath.stat()
                 file_size = file_stat.st_size
-                file_hash = get_file_hash(str(filepath))
+                file_hash = get_file_hash(filepath_str)
+
+                if not file_hash:
+                    logger.warning(f"Could not hash file: {filepath_str}")
+                    stats["errors"] += 1
+                    continue
 
                 # Extract audio metadata
                 metadata = extract_audio_metadata(filepath)
 
                 files_to_insert.append(
                     {
-                        "filepath": str(filepath),
+                        "filepath": filepath_str,
                         "filename": filepath.name,
                         "file_hash": file_hash,
                         "file_size": file_size,
@@ -162,10 +170,9 @@ def process_files(audio_files: List[Path], folder_paths: List[str], progress_cal
 
                 stats["added"] += 1
 
-                # TODO: BEFORE inserting, check for duplicate SHA's OR provide FE functionality!
                 # Bulk insert every 100 files
                 if len(files_to_insert) >= 100:
-                    _bulk_insert_samples(conn, files_to_insert)
+                    _bulk_insert_files(conn, files_to_insert)
                     files_to_insert = []
 
                 # Send progress update
@@ -179,22 +186,27 @@ def process_files(audio_files: List[Path], folder_paths: List[str], progress_cal
 
         # Insert remaining files
         if files_to_insert:
-            _bulk_insert_samples(conn, files_to_insert)
+            _bulk_insert_files(conn, files_to_insert)
 
-        # Update folder statistics for ALL scanned folders (not just those with new files)
+        # Update folder statistics for ALL scanned folders
         for folder_path_str in folder_paths:
             folder_path = str(Path(folder_path_str).resolve())
-            sample_count = conn.execute(
-                "SELECT COUNT(*) as count FROM samples WHERE filepath LIKE ?", (f"{folder_path}%",)
+            file_count = conn.execute(
+                """
+                SELECT COUNT(DISTINCT fl.file_id) as count
+                FROM file_locations fl
+                WHERE fl.file_path LIKE ?
+            """,
+                (f"{folder_path}%",),
             ).fetchone()["count"]
 
             conn.execute(
                 """
                 UPDATE folders
-                SET sample_count = ?, last_scanned = datetime('now'), status = 'active'
+                SET file_count = ?, last_scanned = datetime('now'), status = 'active'
                 WHERE path = ?
             """,
-                (sample_count, folder_path),
+                (file_count, folder_path),
             )
 
         conn.commit()
@@ -207,44 +219,91 @@ def process_files(audio_files: List[Path], folder_paths: List[str], progress_cal
     return stats
 
 
-def _bulk_insert_samples(conn, files_data: List[Dict]):
-    """Helper to bulk insert samples"""
+def _get_or_create_metadata_key(conn: sqlite3.Connection, key: str) -> int:
+    """Get or create metadata key, return key_id"""
+    existing = conn.execute("SELECT id FROM metadata_keys WHERE key = ?", (key,)).fetchone()
+
+    if existing:
+        return existing["id"]
+
+    conn.execute("INSERT INTO metadata_keys (key, is_system) VALUES (?, 1)", (key,))
+    return conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+
+def _bulk_insert_files(conn, files_data: list[dict]):
+    """
+    Helper to bulk insert files using hash-based structure
+    - Checks if file (by hash) already exists
+    - If yes: adds new location
+    - If no: creates file + location
+    - Inserts metadata into file_metadata table
+    """
     for file_data in files_data:
+        file_hash = file_data["file_hash"]
+
+        # Check if file (by hash) already exists
+        existing = conn.execute("SELECT id FROM files WHERE file_hash = ?", (file_hash,)).fetchone()
+
+        if existing:
+            file_id = existing["id"]
+            logger.debug(f"File hash {file_hash[:8]}... already exists as file_id {file_id}, adding new location")
+        else:
+            # Insert new file record
+            conn.execute(
+                """
+                INSERT INTO files
+                (file_hash, format, file_size, duration, sample_rate,
+                 bit_depth, channels, indexed, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))
+            """,
+                (
+                    file_hash,
+                    file_data["format"],
+                    file_data["file_size"],
+                    file_data.get("duration"),
+                    file_data.get("sample_rate"),
+                    file_data.get("bit_depth"),
+                    file_data.get("channels"),
+                ),
+            )
+            file_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+        # Always insert file location (new location for this file)
         conn.execute(
             """
-            INSERT INTO samples
-            (filepath, filename, file_hash, file_size, format, duration, sample_rate,
-             bit_depth, channels, title, artist, album, indexed, last_modified)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))
+            INSERT INTO file_locations
+            (file_id, file_hash, file_path, file_name,
+             discovered_at, last_verified, is_primary)
+            VALUES (?, ?, ?, ?, datetime('now'), datetime('now'), 1)
         """,
-            (
-                file_data["filepath"],
-                file_data["filename"],
-                file_data["file_hash"],
-                file_data["file_size"],
-                file_data["format"],
-                file_data.get("duration"),
-                file_data.get("sample_rate"),
-                file_data.get("bit_depth"),
-                file_data.get("channels"),
-                file_data.get("title"),
-                file_data.get("artist"),
-                file_data.get("album"),
-            ),
+            (file_id, file_hash, file_data["filepath"], file_data["filename"]),
         )
 
-        # Update FTS index
-        sample_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
-        conn.execute(
-            """
-            INSERT INTO samples_fts(rowid, filename, filepath)
-            VALUES (?, ?, ?)
-        """,
-            (sample_id, file_data["filename"], file_data["filepath"]),
-        )
+        # Insert metadata if exists (only if new file, avoid duplicates)
+        if not existing:
+            metadata_items = {
+                "title": file_data.get("title"),
+                "artist": file_data.get("artist"),
+                "album": file_data.get("album"),
+            }
+
+            for key, value in metadata_items.items():
+                if value:  # Only insert if value exists
+                    try:
+                        key_id = _get_or_create_metadata_key(conn, key)
+                        conn.execute(
+                            """
+                            INSERT OR REPLACE INTO file_metadata
+                            (file_id, metadata_key_id, value, created_at)
+                            VALUES (?, ?, ?, datetime('now'))
+                        """,
+                            (file_id, key_id, value),
+                        )
+                    except Exception as e:
+                        logger.error(f"Error inserting metadata {key}={value}: {e}")
 
 
-def scan_folders_with_progress(folder_paths: List[str], progress_callback: Optional[Callable] = None) -> Dict:
+def scan_folders_with_progress(folder_paths: list[str], progress_callback: Callable | None = None) -> dict:
     """
     Main scan function with two phases:
     1. Scan for files
@@ -254,12 +313,10 @@ def scan_folders_with_progress(folder_paths: List[str], progress_callback: Optio
     audio_files = scan_for_files(folder_paths, progress_callback)
 
     # Phase 2: Process files
-    stats = process_files(audio_files, folder_paths, progress_callback)
-
-    return stats
+    return process_files(audio_files, folder_paths, progress_callback)
 
 
-def scan_folders(folder_paths: List[str]) -> Dict:
+def scan_folders(folder_paths: list[str]) -> dict:
     """
     Scan multiple folders and return combined statistics
     (Backward compatible version without progress updates)
@@ -267,7 +324,7 @@ def scan_folders(folder_paths: List[str]) -> Dict:
     return scan_folders_with_progress(folder_paths, progress_callback=None)
 
 
-def check_and_complete_incomplete_scans() -> Dict:
+def check_and_complete_incomplete_scans() -> dict:
     """
     Check for folders with incomplete scans and complete them.
     This runs on application startup to ensure data consistency.
@@ -292,10 +349,7 @@ def check_and_complete_incomplete_scans() -> Dict:
 
         # Reset status to 'pending' for all incomplete folders
         for folder_path in incomplete_folders:
-            conn.execute(
-                "UPDATE folders SET status = 'pending' WHERE path = ?",
-                (folder_path,)
-            )
+            conn.execute("UPDATE folders SET status = 'pending' WHERE path = ?", (folder_path,))
         conn.commit()
 
     # Resume scanning for all incomplete folders

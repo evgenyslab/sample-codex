@@ -1,5 +1,6 @@
 """Application configuration"""
 
+import os
 from pathlib import Path
 
 # Database
@@ -19,8 +20,6 @@ PORT = 8000
 
 # Frontend settings (for production build)
 # Use demo-dist for Railway demo deployment, dist for local production
-import os
-
 FRONTEND_BUILD_DIR = BASE_DIR.parent / "frontend" / ("demo-dist" if os.getenv("DEMO_MODE") else "dist")
 
 # Pagination

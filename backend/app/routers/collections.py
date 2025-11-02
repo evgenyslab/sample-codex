@@ -1,39 +1,36 @@
 """Collection management API endpoints"""
 
-from typing import List, Optional
-
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from app.db_connection import db, get_db_connection
+from app.db_connection import get_db_connection
 
 router = APIRouter()
 
 
 class Collection(BaseModel):
-    id: Optional[int] = None
+    id: int | None = None
     name: str
-    description: Optional[str] = None
+    description: str | None = None
 
 
 class AddItemRequest(BaseModel):
-    sample_id: int
-    alias: Optional[str] = None
+    file_id: int
 
 
 class BulkUpdateCollectionsRequest(BaseModel):
-    sample_ids: List[int]
-    add_collection_ids: List[int]  # Collections to add samples to
-    remove_collection_ids: List[int]  # Collections to remove samples from
+    file_ids: list[int]
+    add_collection_ids: list[int]  # Collections to add files to
+    remove_collection_ids: list[int]  # Collections to remove files from
 
 
 class ReorderRequest(BaseModel):
-    item_order: List[int]  # List of sample IDs in desired order
+    item_order: list[int]  # list of file IDs in desired order
 
 
 @router.get("")
 async def list_collections(request: Request):
-    """List all collections"""
+    """list all collections"""
     with get_db_connection(request) as conn:
         cursor = conn.execute("SELECT * FROM collections ORDER BY updated_at DESC")
         collections = [dict(row) for row in cursor.fetchall()]
@@ -53,7 +50,7 @@ async def create_collection(request: Request, collection: Collection):
 
 @router.get("/{collection_id}")
 async def get_collection(request: Request, collection_id: int):
-    """Get collection details with samples"""
+    """Get collection details with files"""
     with get_db_connection(request) as conn:
         # Get collection
         collection = conn.execute("SELECT * FROM collections WHERE id = ?", (collection_id,)).fetchone()
@@ -61,12 +58,12 @@ async def get_collection(request: Request, collection_id: int):
         if not collection:
             raise HTTPException(status_code=404, detail="Collection not found")
 
-        # Get samples in collection
-        samples = conn.execute(
+        # Get files in collection
+        files = conn.execute(
             """
-            SELECT s.*, ci.order_index, ci.alias
-            FROM samples s
-            JOIN collection_items ci ON s.id = ci.sample_id
+            SELECT f.*, ci.order_index
+            FROM files f
+            JOIN collection_items ci ON f.id = ci.file_id
             WHERE ci.collection_id = ?
             ORDER BY ci.order_index
         """,
@@ -74,7 +71,7 @@ async def get_collection(request: Request, collection_id: int):
         ).fetchall()
 
         result = dict(collection)
-        result["samples"] = [dict(sample) for sample in samples]
+        result["files"] = [dict(file) for file in files]
 
         return result
 
@@ -110,7 +107,7 @@ async def delete_collection(request: Request, collection_id: int):
 
 @router.post("/{collection_id}/items")
 async def add_item_to_collection(request: Request, collection_id: int, add_request: AddItemRequest):
-    """Add sample to collection"""
+    """Add file to collection"""
     with get_db_connection(request) as conn:
         # Verify collection exists
         collection = conn.execute("SELECT id FROM collections WHERE id = ?", (collection_id,)).fetchone()
@@ -126,35 +123,34 @@ async def add_item_to_collection(request: Request, collection_id: int, add_reque
         # Add item
         try:
             conn.execute(
-                "INSERT INTO collection_items (collection_id, sample_id, order_index, alias) VALUES (?, ?, ?, ?)",
-                (collection_id, add_request.sample_id, next_order, add_request.alias),
+                "INSERT INTO collection_items (collection_id, file_id, order_index) VALUES (?, ?, ?)",
+                (collection_id, add_request.file_id, next_order),
             )
             conn.commit()
             return {
                 "status": "added",
                 "collection_id": collection_id,
-                "sample_id": add_request.sample_id,
-                "alias": add_request.alias,
+                "file_id": add_request.file_id,
             }
         except Exception as e:
             if "UNIQUE constraint failed" in str(e):
-                raise HTTPException(status_code=400, detail="Sample already in collection")
-            raise HTTPException(status_code=500, detail=str(e))
+                raise HTTPException(status_code=400, detail="File already in collection") from e
+            raise HTTPException(status_code=500, detail=str(e)) from e
 
 
-@router.delete("/{collection_id}/items/{sample_id}")
-async def remove_item_from_collection(request: Request, collection_id: int, sample_id: int):
-    """Remove sample from collection"""
+@router.delete("/{collection_id}/items/{file_id}")
+async def remove_item_from_collection(request: Request, collection_id: int, file_id: int):
+    """Remove file from collection"""
     with get_db_connection(request) as conn:
         cursor = conn.execute(
-            "DELETE FROM collection_items WHERE collection_id = ? AND sample_id = ?", (collection_id, sample_id)
+            "DELETE FROM collection_items WHERE collection_id = ? AND file_id = ?", (collection_id, file_id)
         )
         conn.commit()
 
         if cursor.rowcount == 0:
             raise HTTPException(status_code=404, detail="Item not found in collection")
 
-        return {"status": "removed", "collection_id": collection_id, "sample_id": sample_id}
+        return {"status": "removed", "collection_id": collection_id, "file_id": file_id}
 
 
 @router.put("/{collection_id}/items/reorder")
@@ -162,10 +158,10 @@ async def reorder_collection_items(request: Request, collection_id: int, reorder
     """Reorder items in collection"""
     with get_db_connection(request) as conn:
         # Update order for each item
-        for index, sample_id in enumerate(reorder_request.item_order):
+        for index, file_id in enumerate(reorder_request.item_order):
             conn.execute(
-                "UPDATE collection_items SET order_index = ? WHERE collection_id = ? AND sample_id = ?",
-                (index, collection_id, sample_id),
+                "UPDATE collection_items SET order_index = ? WHERE collection_id = ? AND file_id = ?",
+                (index, collection_id, file_id),
             )
         conn.commit()
 
@@ -173,29 +169,29 @@ async def reorder_collection_items(request: Request, collection_id: int, reorder
 
 
 @router.post("/bulk")
-async def bulk_update_sample_collections(request: Request, bulk_request: BulkUpdateCollectionsRequest):
+async def bulk_update_file_collections(request: Request, bulk_request: BulkUpdateCollectionsRequest):
     """
-    Bulk update collections for multiple samples
+    Bulk update collections for multiple files
 
-    For each sample in sample_ids:
-    - Collections in add_collection_ids will have the sample added (if not already present)
-    - Collections in remove_collection_ids will have the sample removed (if present)
+    For each file in file_ids:
+    - Collections in add_collection_ids will have the file added (if not already present)
+    - Collections in remove_collection_ids will have the file removed (if present)
     """
     with get_db_connection(request) as conn:
-        # Verify all samples exist
-        placeholders = ",".join("?" * len(bulk_request.sample_ids))
-        cursor = conn.execute(f"SELECT id FROM samples WHERE id IN ({placeholders})", bulk_request.sample_ids)
-        existing_samples = {row["id"] for row in cursor.fetchall()}
+        # Verify all files exist
+        placeholders = ",".join("?" * len(bulk_request.file_ids))
+        cursor = conn.execute(f"SELECT id FROM files WHERE id IN ({placeholders})", bulk_request.file_ids)
+        existing_files = {row["id"] for row in cursor.fetchall()}
 
-        if len(existing_samples) != len(bulk_request.sample_ids):
-            missing = set(bulk_request.sample_ids) - existing_samples
-            raise HTTPException(status_code=404, detail=f"Samples not found: {missing}")
+        if len(existing_files) != len(bulk_request.file_ids):
+            missing = set(bulk_request.file_ids) - existing_files
+            raise HTTPException(status_code=404, detail=f"Files not found: {missing}")
 
         added_count = 0
         removed_count = 0
 
         # Process additions
-        for sample_id in bulk_request.sample_ids:
+        for file_id in bulk_request.file_ids:
             for collection_id in bulk_request.add_collection_ids:
                 # Get next order index for this collection
                 max_order = conn.execute(
@@ -206,22 +202,22 @@ async def bulk_update_sample_collections(request: Request, bulk_request: BulkUpd
 
                 try:
                     conn.execute(
-                        "INSERT OR IGNORE INTO collection_items (collection_id, sample_id, order_index) VALUES (?, ?, ?)",
-                        (collection_id, sample_id, next_order),
+                        "INSERT OR IGNORE INTO collection_items (collection_id, file_id, order_index) VALUES (?, ?, ?)",
+                        (collection_id, file_id, next_order),
                     )
                     if conn.total_changes > 0:
                         added_count += 1
                 except Exception as e:
                     raise HTTPException(
                         status_code=400,
-                        detail=f"Error adding sample {sample_id} to collection {collection_id}: {str(e)}",
-                    )
+                        detail=f"Error adding file {file_id} to collection {collection_id}: {str(e)}",
+                    ) from e
 
         # Process removals
-        for sample_id in bulk_request.sample_ids:
+        for file_id in bulk_request.file_ids:
             for collection_id in bulk_request.remove_collection_ids:
                 cursor = conn.execute(
-                    "DELETE FROM collection_items WHERE collection_id = ? AND sample_id = ?", (collection_id, sample_id)
+                    "DELETE FROM collection_items WHERE collection_id = ? AND file_id = ?", (collection_id, file_id)
                 )
                 removed_count += cursor.rowcount
 
@@ -238,11 +234,11 @@ async def bulk_update_sample_collections(request: Request, bulk_request: BulkUpd
 
         return {
             "status": "success",
-            "samples_updated": len(bulk_request.sample_ids),
+            "files_updated": len(bulk_request.file_ids),
             "items_added": added_count,
             "items_removed": removed_count,
             "details": {
-                "sample_ids": bulk_request.sample_ids,
+                "file_ids": bulk_request.file_ids,
                 "add_collection_ids": bulk_request.add_collection_ids,
                 "remove_collection_ids": bulk_request.remove_collection_ids,
             },

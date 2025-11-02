@@ -1,12 +1,10 @@
 """FastAPI application entry point"""
 
-from starlette.responses import FileResponse
-from typing import Any, Generator
-
-
 import logging
 import os
+from collections.abc import Generator
 from contextlib import asynccontextmanager
+from typing import Any
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -33,7 +31,7 @@ else:
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> Generator[None, Any, None]:
+async def lifespan(app: FastAPI) -> Generator[None, Any, None]:  # noqa: ARG001
     """Application lifespan events"""
     # Startup
     logger.info("Starting Audio Sample Manager backend...")
@@ -44,6 +42,7 @@ async def lifespan(app: FastAPI) -> Generator[None, Any, None]:
     if not DEMO_MODE:
         logger.info("Checking for incomplete folder scans...")
         from app.services.scanner import check_and_complete_incomplete_scans
+
         try:
             scan_stats = check_and_complete_incomplete_scans()
             if scan_stats["resumed"] > 0:
