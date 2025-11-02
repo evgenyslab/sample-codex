@@ -1,13 +1,11 @@
-providers = ['node', 'python']
-
 [phases.setup]
-nixPkgs = ['...', 'libsndfile', 'pkg-config']
+nixPkgs = ['nodejs_20', 'python311', 'python311Packages.pip', 'libsndfile', 'pkg-config']
 
 [phases.install]
 cmds = [
     'cd frontend && rm -rf node_modules && npm cache clean --force && npm install --include=optional && npm run build',
-    'pip install --upgrade pip',
-    'pip install -e .'
+    'python -m pip install --upgrade pip',
+    'python -m pip install -e .'
 ]
 
 [start]
