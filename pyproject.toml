@@ -1,0 +1,121 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sample-codex-backend"
+version = "0.1.0"
+description = "Audio Sample Manager API"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "fastapi==0.104.1",
+    "uvicorn[standard]==0.24.0",
+    "pydantic==2.5.0",
+    "python-multipart==0.0.6",
+    "websockets==12.0",
+    "mutagen==1.47.0",
+    "pydub==0.25.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.8.0",
+    "mypy>=1.7.0",
+]
+
+[tool.setuptools]
+packages = ["app"]
+package-dir = {"" = "backend"}
+
+[tool.ruff]
+# Line length
+line-length = 120
+
+# Target Python version
+target-version = "py39"
+
+# Exclude directories
+exclude = [
+    ".git",
+    ".venv",
+    "__pycache__",
+    "*.egg-info",
+    "dist",
+    "build",
+    "data",
+]
+
+[tool.ruff.lint]
+# Enable specific rule sets
+select = [
+    "E",     # pycodestyle errors
+    "F",     # pyflakes
+    "I",     # isort (import sorting)
+    "UP",    # pyupgrade
+    "B",     # flake8-bugbear
+    "C4",    # flake8-comprehensions
+    "PIE",   # flake8-pie
+    "SIM",   # flake8-simplify
+    "RET",   # flake8-return
+    "ARG",   # flake8-unused-arguments
+]
+
+# Ignore specific rules
+ignore = [
+    "E501",  # Line too long (handled by formatter)
+]
+
+[tool.ruff.format]
+# Use double quotes for strings
+quote-style = "double"
+
+# Indent with spaces
+indent-style = "space"
+
+# Use Unix line endings
+line-ending = "lf"
+
+[tool.ruff.lint.isort]
+# Import sorting configuration
+combine-as-imports = true
+force-wrap-aliases = true
+known-first-party = ["app"]
+
+[tool.ruff.lint.per-file-ignores]
+# Allow unused imports in __init__.py files
+"__init__.py" = ["F401"]
+
+[tool.mypy]
+# Basic mypy configuration
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+show_error_codes = true
+show_column_numbers = true
+
+# Ignore missing imports for third-party libraries without stubs
+ignore_missing_imports = true
+
+# Exclude specific paths
+exclude = [
+    "^tests/",
+    "^data/",
+]
+
+[[tool.mypy.overrides]]
+module = "mutagen.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "pydub.*"
+ignore_missing_imports = true
