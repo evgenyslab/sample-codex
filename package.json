@@ -4,7 +4,6 @@
   "description": "Audio sample codex - unified application",
   "private": true,
   "scripts": {
-    "install": "npm install --prefix frontend && pip install -e backend/[dev]",
     "dev": "npm run dev:backend & npm run dev:frontend",
     "dev:backend": "cd backend && python run.py",
     "dev:frontend": "cd frontend && npm run dev",
