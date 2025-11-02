@@ -54,7 +54,7 @@ const Sidebar = ({ onAddFolders, onOpenSettings, stats, health }: SidebarProps) 
   };
 
   return (
-    <div className={`border-r bg-background h-screen flex flex-col ${isCollapsed ? 'w-16' : 'w-64'}`}>
+    <div className={`border-r bg-background h-full flex flex-col ${isCollapsed ? 'w-16' : 'w-64'}`}>
       {/* Header */}
       <div className={`px-3 pt-6 pb-4 flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
         <div className={`overflow-hidden transition-opacity duration-150 ${isCollapsed ? 'opacity-0 w-0 display-none' : 'flex-1 px-3 opacity-100'}`}>

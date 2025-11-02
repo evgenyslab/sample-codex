@@ -79,7 +79,7 @@ export default function Search() {
   }
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex h-full bg-background">
       <Sidebar
         onAddFolders={() => setIsFolderBrowserOpen(true)}
         onOpenSettings={() => setIsSettingsOpen(true)}

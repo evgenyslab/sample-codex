@@ -82,7 +82,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex h-full bg-background">
       {/* Sidebar */}
       <Sidebar
         onAddFolders={() => setIsFolderBrowserOpen(true)}

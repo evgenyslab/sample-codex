@@ -543,7 +543,7 @@ export default function Browser() {
   }, [selectedSamples, samples, selectedSample, isPlayerOpen, isFolderPaneVisible, rowVirtualizer])
 
   return (
-    <div className="flex h-screen bg-background overflow-x-hidden">
+    <div className="flex h-full bg-background overflow-x-hidden">
       <Sidebar
         onAddFolders={() => setIsFolderBrowserOpen(true)}
         onOpenSettings={() => setIsSettingsOpen(true)}
