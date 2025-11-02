@@ -7,6 +7,8 @@ import { useAudioPlayer } from '../../contexts/AudioPlayerContext';
 import type { Sample } from '../../types';
 import './SamplePlayer.css';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+
 interface SamplePlayerProps {
   sample: Sample | null;
   isOpen: boolean;
@@ -108,7 +110,7 @@ const SamplePlayer = forwardRef<SamplePlayerRef, SamplePlayerProps>(
           if (!blob) {
             console.log('Audio not in cache, fetching from backend...');
             // Fetch from backend
-            const response = await fetch(`http://localhost:8000/api/samples/${sample.id}/audio`);
+            const response = await fetch(`${API_BASE_URL}/samples/${sample.id}/audio`);
 
             if (!response.ok) {
               throw new Error(`Failed to load audio: ${response.statusText}`);

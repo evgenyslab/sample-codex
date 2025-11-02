@@ -58,7 +58,7 @@ const Sidebar = ({ onAddFolders, onOpenSettings, stats, health }: SidebarProps) 
       {/* Header */}
       <div className={`px-3 pt-6 pb-4 flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
         <div className={`overflow-hidden transition-opacity duration-150 ${isCollapsed ? 'opacity-0 w-0 display-none' : 'flex-1 px-3 opacity-100'}`}>
-          <h2 className="text-lg font-semibold tracking-tight whitespace-nowrap">Sampvr</h2>
+          <h2 className="text-lg font-semibold tracking-tight whitespace-nowrap">Samplvr</h2>
         </div>
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}

@@ -25,9 +25,16 @@ export function useScanProgress() {
 
     // Determine WebSocket URL
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsHost = import.meta.env.VITE_API_URL
-      ? new URL(import.meta.env.VITE_API_URL).host
-      : 'localhost:8000';
+
+    // If VITE_API_URL is relative (like '/api'), use current host
+    // Otherwise parse the full URL to get the host
+    let wsHost: string;
+    const apiUrl = import.meta.env.VITE_API_URL;
+    if (!apiUrl || apiUrl.startsWith('/')) {
+      wsHost = window.location.host;
+    } else {
+      wsHost = new URL(apiUrl).host;
+    }
 
     const wsUrl = `${wsProtocol}//${wsHost}/api/folders/ws/scan`;
 
