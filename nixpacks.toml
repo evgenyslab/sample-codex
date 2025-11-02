@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ['libsndfile', 'pkg-config']
+nixPkgs = ['nodejs_20','libsndfile', 'pkg-config']
 
 [phases.install]
 cmds = [
