@@ -1,5 +1,9 @@
 """FastAPI application entry point"""
 
+from starlette.responses import FileResponse
+from typing import Any, Generator
+
+
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -29,12 +33,26 @@ else:
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> Generator[None, Any, None]:
     """Application lifespan events"""
     # Startup
     logger.info("Starting Audio Sample Manager backend...")
     health = db.check_health()
     logger.info(f"Database health: {'OK' if health else 'FAILED'}")
+
+    # Check for incomplete scans and complete them (only in production mode)
+    if not DEMO_MODE:
+        logger.info("Checking for incomplete folder scans...")
+        from app.services.scanner import check_and_complete_incomplete_scans
+        try:
+            scan_stats = check_and_complete_incomplete_scans()
+            if scan_stats["resumed"] > 0:
+                logger.info(
+                    f"Completed {scan_stats['resumed']} incomplete scans: "
+                    f"{scan_stats['completed']} samples added, {scan_stats['errors']} errors"
+                )
+        except Exception as e:
+            logger.error(f"Error checking incomplete scans on startup: {e}")
 
     yield
 
@@ -73,7 +91,7 @@ app.include_router(search.router, prefix="/api/search", tags=["search"])
 
 
 @app.get("/api/health")
-async def health_check():
+async def health_check() -> dict[str, Any]:
     """Health check endpoint"""
     db_healthy = db.check_health()
     db_path = ":memory: (demo mode)" if DEMO_MODE else str(getattr(db, "db_path", "unknown"))
@@ -86,7 +104,7 @@ async def health_check():
 
 
 @app.post("/api/database/clear")
-async def clear_all_data():
+async def clear_all_data() -> dict[str, str]:
     """Clear all data from the database"""
     # Disable in demo mode
     if DEMO_MODE:
@@ -111,16 +129,16 @@ if FRONTEND_BUILD_DIR.exists():
         app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
         logger.info(f"Serving static assets from: {assets_dir}")
 
-    @app.get("/")
-    async def serve_root():
+    @app.get("/", response_model=None)
+    async def serve_root() -> FileResponse | dict[str, str]:
         """Serve the frontend root page"""
         index_path = FRONTEND_BUILD_DIR / "index.html"
         if index_path.exists():
             return FileResponse(index_path)
         return {"message": "Frontend not found"}
 
-    @app.get("/{full_path:path}")
-    async def serve_frontend(full_path: str):
+    @app.get("/{full_path:path}", response_model=None)
+    async def serve_frontend(full_path: str) -> dict[str, str] | FileResponse:
         """Serve frontend application for all non-API routes (SPA support)"""
         # Skip API routes
         if full_path.startswith("api/"):

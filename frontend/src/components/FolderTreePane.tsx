@@ -66,6 +66,17 @@ function buildFolderTree(paths: string[]): TreeResult {
     });
   });
 
+  // If tree is empty but we have a common root, add the root as a single node
+  if (Object.keys(tree).length === 0 && commonRoot.length > 0) {
+    const rootName = commonRoot[commonRoot.length - 1];
+    tree[rootName] = {
+      name: rootName,
+      fullPath: rootPath,
+      children: {},
+      isFile: false
+    };
+  }
+
   return { root: rootPath, tree };
 }
 

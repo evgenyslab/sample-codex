@@ -110,7 +110,7 @@ def scan_for_files(folder_paths: List[str], progress_callback: Optional[Callable
     return all_audio_files
 
 
-def process_files(audio_files: List[Path], progress_callback: Optional[Callable] = None) -> Dict:
+def process_files(audio_files: List[Path], folder_paths: List[str], progress_callback: Optional[Callable] = None) -> Dict:
     """
     Phase 2: Process audio files and extract metadata
     Bulk updates the database
@@ -181,9 +181,9 @@ def process_files(audio_files: List[Path], progress_callback: Optional[Callable]
         if files_to_insert:
             _bulk_insert_samples(conn, files_to_insert)
 
-        # Update folder statistics
-        folder_paths = set(str(Path(f["filepath"]).parent) for f in files_to_insert)
-        for folder_path in folder_paths:
+        # Update folder statistics for ALL scanned folders (not just those with new files)
+        for folder_path_str in folder_paths:
+            folder_path = str(Path(folder_path_str).resolve())
             sample_count = conn.execute(
                 "SELECT COUNT(*) as count FROM samples WHERE filepath LIKE ?", (f"{folder_path}%",)
             ).fetchone()["count"]
@@ -192,9 +192,9 @@ def process_files(audio_files: List[Path], progress_callback: Optional[Callable]
                 """
                 UPDATE folders
                 SET sample_count = ?, last_scanned = datetime('now'), status = 'active'
-                WHERE path LIKE ?
+                WHERE path = ?
             """,
-                (sample_count, f"{folder_path}%"),
+                (sample_count, folder_path),
             )
 
         conn.commit()
@@ -254,7 +254,7 @@ def scan_folders_with_progress(folder_paths: List[str], progress_callback: Optio
     audio_files = scan_for_files(folder_paths, progress_callback)
 
     # Phase 2: Process files
-    stats = process_files(audio_files, progress_callback)
+    stats = process_files(audio_files, folder_paths, progress_callback)
 
     return stats
 
@@ -265,3 +265,48 @@ def scan_folders(folder_paths: List[str]) -> Dict:
     (Backward compatible version without progress updates)
     """
     return scan_folders_with_progress(folder_paths, progress_callback=None)
+
+
+def check_and_complete_incomplete_scans() -> Dict:
+    """
+    Check for folders with incomplete scans and complete them.
+    This runs on application startup to ensure data consistency.
+
+    Returns statistics about resumed scans.
+    """
+    stats = {"resumed": 0, "completed": 0, "errors": 0}
+
+    with db.get_connection() as conn:
+        # Find folders that are not in 'active' status
+        cursor = conn.execute(
+            "SELECT path FROM folders WHERE status != 'active'",
+        )
+        incomplete_folders = [row["path"] for row in cursor.fetchall()]
+
+        if not incomplete_folders:
+            logger.info("No incomplete scans found on startup")
+            return stats
+
+        logger.info(f"Found {len(incomplete_folders)} incomplete folder scans on startup")
+        stats["resumed"] = len(incomplete_folders)
+
+        # Reset status to 'pending' for all incomplete folders
+        for folder_path in incomplete_folders:
+            conn.execute(
+                "UPDATE folders SET status = 'pending' WHERE path = ?",
+                (folder_path,)
+            )
+        conn.commit()
+
+    # Resume scanning for all incomplete folders
+    try:
+        logger.info(f"Resuming scans for {len(incomplete_folders)} folders...")
+        result = scan_folders(incomplete_folders)
+        stats["completed"] = result.get("added", 0)
+        stats["errors"] = result.get("errors", 0)
+        logger.info(f"Startup scan completion: {stats}")
+    except Exception as e:
+        logger.error(f"Error completing incomplete scans on startup: {e}")
+        stats["errors"] += 1
+
+    return stats

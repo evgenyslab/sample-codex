@@ -176,7 +176,7 @@ class Database:
             return False
 
     def clear_all_data(self) -> bool:
-        """Clear all data from all tables"""
+        """Clear all data from all tables (except system tags)"""
         try:
             with self.get_connection() as conn:
                 # Delete in order to respect foreign key constraints
@@ -186,10 +186,11 @@ class Database:
                 conn.execute("DELETE FROM sample_tags")
                 conn.execute("DELETE FROM samples_fts")
                 conn.execute("DELETE FROM samples")
-                conn.execute("DELETE FROM tags")
+                # Only delete non-system tags
+                conn.execute("DELETE FROM tags WHERE is_system = 0 OR is_system IS NULL")
                 conn.execute("DELETE FROM folders")
                 conn.commit()
-                logger.info("All data cleared from database")
+                logger.info("All data cleared from database (preserved system tags)")
             return True
         except Exception as e:
             logger.error(f"Failed to clear all data: {e}")

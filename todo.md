@@ -31,3 +31,9 @@ BE
     - Add support for db migrations for different db versions
     - add file SHA's to DB to avoid duplicates & allow re-discovery of files
     - Semantic Tagging... maybe use gpt/claude call for this?
+
+BE/FE
+- clear samples 
+    - keep tag data (need tag data to be linked to file SHA)
+    - keep collection data (need collections to xref to SHA)
+

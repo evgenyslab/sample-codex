@@ -52,11 +52,12 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
     try {
       await clearAllData();
 
-      // Invalidate all queries to refresh the UI
-      queryClient.invalidateQueries({ queryKey: ['folders'] });
-      queryClient.invalidateQueries({ queryKey: ['samples'] });
-      queryClient.invalidateQueries({ queryKey: ['tags'] });
-      queryClient.invalidateQueries({ queryKey: ['collections'] });
+      // Refetch all queries to refresh the UI
+      queryClient.refetchQueries({ queryKey: ['folders'] });
+      queryClient.refetchQueries({ queryKey: ['samples'] });
+      queryClient.refetchQueries({ queryKey: ['samples-all'] });
+      queryClient.refetchQueries({ queryKey: ['tags'] });
+      queryClient.refetchQueries({ queryKey: ['collections'] });
 
       toast.success('All data cleared successfully');
       onClose();

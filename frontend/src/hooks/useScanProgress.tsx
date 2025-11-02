@@ -114,6 +114,13 @@ export function useScanProgress() {
             position: 'bottom-right',
           });
 
+          // Refetch all data to show new samples (using refetchQueries for more aggressive refresh)
+          queryClient.refetchQueries({ queryKey: ['samples'] });
+          queryClient.refetchQueries({ queryKey: ['samples-all'] });
+          queryClient.refetchQueries({ queryKey: ['tags'] });
+          queryClient.refetchQueries({ queryKey: ['collections'] });
+          queryClient.refetchQueries({ queryKey: ['folders'] });
+
           // Close WebSocket
           ws.close();
           wsRef.current = null;
