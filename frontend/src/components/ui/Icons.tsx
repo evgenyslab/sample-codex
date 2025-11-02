@@ -1,5 +1,7 @@
 // Icons using @tabler/icons-react library
 import {
+  IconBook,
+  IconBookFilled,
   IconBooks,
   IconChevronUp,
   IconCornerLeftUp,
@@ -80,4 +82,12 @@ export const MoonIcon = ({ className = "w-4 h-4" }: IconProps) => (
 
 export const SunIcon = ({ className = "w-4 h-4" }: IconProps) => (
   <IconSun className={className} stroke={1.5} />
+);
+
+export const BookIcon = ({ className = "w-4 h-4" }: IconProps) => (
+  <IconBook className={className} stroke={1.5} />
+);
+
+export const BookFilledIcon = ({ className = "w-4 h-4" }: IconProps) => (
+  <IconBookFilled className={className} stroke={1.5} />
 );

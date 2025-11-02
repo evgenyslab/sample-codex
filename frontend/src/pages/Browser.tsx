@@ -275,6 +275,21 @@ export default function Browser() {
     return (tagsData?.tags || []).filter(tag => tagIds.has(tag.id))
   }, [samplesData, tagsData])
 
+  // Calculate which tags are actually used in samples (for filtering tag pane)
+  const allTags = useMemo(() => {
+    const allSamples = allSamplesData?.samples || []
+    const tagIds = new Set<number>()
+
+    allSamples.forEach(sample => {
+      sample.tags?.forEach(tag => {
+        tagIds.add(tag.id)
+      })
+    })
+
+    // Filter tags to only those that are used
+    return (tagsData?.tags || []).filter(tag => tagIds.has(tag.id))
+  }, [samplesData, tagsData])
+
   // Get all collections for filtering (show all collections, not just used ones)
   const allCollectionsForFilter = useMemo(() => {
     return collectionsData?.collections || []
@@ -554,7 +569,9 @@ export default function Browser() {
       <div className="flex-1 flex gap-2 p-4 overflow-hidden relative">
         {/* Left Pane - Tags Filter */}
         <FilterPane
-          items={usedTags}
+          // we pass all tags to the filter pane, not just the visible tags, otherwise the 
+          // excluded tags will not be shown in the filter pane
+          items={allTags}
           type="tags"
           includedItems={includedTags}
           excludedItems={excludedTags}

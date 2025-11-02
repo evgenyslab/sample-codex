@@ -1,8 +1,11 @@
-import { useState, useEffect, useMemo } from 'react';
-import { X, Plus } from 'lucide-react';
-import { createCollection } from '../../services/api';
-import type { Collection, Sample } from '../../types';
 import './CollectionPopup.css';
+
+import { BookFilledIcon, BookIcon } from '../ui/Icons';
+import type { Collection, Sample } from '../../types';
+import { Plus, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+
+import { createCollection } from '../../services/api';
 
 type CollectionState = 'checked' | 'unchecked' | 'indeterminate';
 
@@ -282,16 +285,15 @@ export default function CollectionPopup({
                 className="collection-item"
                 onClick={() => handleToggleCollection(collection.id)}
               >
-                <input
-                  type="checkbox"
-                  checked={state === 'checked'}
-                  ref={(input) => {
-                    if (input) {
-                      input.indeterminate = state === 'indeterminate';
-                    }
-                  }}
-                  onChange={() => {}} // Handled by parent div onClick
-                />
+                 <span>
+                  {state === 'checked' ? (
+                        <BookFilledIcon className="w-5 h-5 text-green-500" />
+                      ) : ( state === 'indeterminate' ? (
+                        <BookIcon className="w-5 h-5 text-yellow-500" />
+                      ) : (
+                        <BookIcon className="w-5 h-5 text-muted-foreground" />
+                      ))}
+                  </span>
                 <label className="collection-item-label">
                   {collection.name}
                 </label>

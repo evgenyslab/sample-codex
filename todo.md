@@ -6,8 +6,16 @@ start application until db is selected
 - come up with process flow to handle de-synced files or moved files, reconciliation
 
 FE
-- when tag list open, need to have selected tags at the top
-- in tag list modal, use same icon fill/unfil as in folder search
+- COLOR Scheme issues
+    - light background, a bunch of modals' text doesn't show up
+
+- Tag popup UI Improvement:
+    - needs to bring all checked tags to top
+    - needs to track which tags are newly checked, and which are newly unchecked (staged)
+        - maybe existing | added | removed | available
+        - remove list sort, should just be in groups and flex fit
+
+
 - tab play icon should have rounded corners
 - allow users to switch db (needs to have the folder search modal)
 - delete all modal should have NUKE option which deletes everything non-system, 

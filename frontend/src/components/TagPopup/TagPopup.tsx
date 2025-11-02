@@ -53,7 +53,7 @@ export default function TagPopup({
   const [initialStates, setInitialStates] = useState<TagStates>({});
   const [hasChanges, setHasChanges] = useState(false);
 
-  // Calculate initial tag states when popup opens or samples change
+  // Calculate initial tag states for selected samples when popup opens or selected samples change
   useEffect(() => {
     if (!isOpen || selectedSampleIds.length === 0) return;
 

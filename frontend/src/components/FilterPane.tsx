@@ -1,6 +1,21 @@
 import { ChevronUpIcon, SearchIcon, TagIcon, XIcon } from './ui/Icons';
 import { useMemo, useState } from 'react';
 
+/*
+This function will need some work, and most likely so will all the filtering states.
+
+Top level browser page gets all items, then list of tags, folder and collections.
+The unique set of tags across all items is displayed in the tag filter pane.
+The unique set of common folders across all items is displayed in the folder filter pane.
+The unique set of collections across all items is displayed in the collection filter pane.
+
+Now, if we want to exclude tags, we click exclude, which adds it to the excluded list, but it 
+also causes the files to be filtered to only show files that do not have that tag, that in turn
+removes the tag from filter pane, but we want to keep it in the filter pane, so we can re-include it.
+
+
+*/
+
 interface FilterItem {
   id: number;
   name: string;
@@ -49,6 +64,7 @@ export default function FilterPane<T extends FilterItem = FilterItem>({
   const filteredItems = useMemo(() => {
     if (!items) return [];
 
+    // All visible tags at the moment
     let filtered = items;
 
     // Apply search filter
@@ -70,6 +86,7 @@ export default function FilterPane<T extends FilterItem = FilterItem>({
         return 0;
       });
     }
+    
 
     return filtered;
   }, [items, searchQuery, highlightedItems, getItemLabel, getItemId]);
@@ -132,9 +149,9 @@ export default function FilterPane<T extends FilterItem = FilterItem>({
                     key={itemId}
                     className={`
                       flex items-center justify-between px-3 py-2 rounded-md text-sm cursor-pointer transition-colors
-                      ${isIncluded ? 'bg-primary text-primary-foreground' : ''}
+                      ${isIncluded ? 'bg-green-500/50 text-primary-foreground' : ''}
                       ${isExcluded ? 'bg-red-500 text-white' : ''}
-                      ${!isIncluded && !isExcluded && isHighlighted ? 'bg-yellow-500/20 border-l-2 border-l-yellow-500 dark:bg-yellow-900/30' : ''}
+                      ${!isIncluded && !isExcluded && isHighlighted ? 'bg-yellow-500/20 outline-1 outline-yellow-500 dark:bg-yellow-200/10' : ''}
                       ${!isIncluded && !isExcluded && !isHighlighted ? 'hover:bg-accent hover:text-accent-foreground' : ''}
                     `}
                     onClick={() => handleItemClick(itemId, false)}
