@@ -25,7 +25,7 @@ const DemoBanner = () => {
     <div className="bg-primary/10 border-b border-primary/20 px-4 py-2 text-center text-sm">
       <span className="font-semibold text-primary">🎭 Demo Mode</span>
       <span className="text-muted-foreground ml-2">
-        Your changes are private and temporary. Data resets after 1 hour of inactivity.
+        Your changes are private and temporary. Data resets after 1 hour of inactivity. Hit `?` for shortcuts.
       </span>
     </div>
   )

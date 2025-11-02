@@ -32,3 +32,7 @@ ALLOWED_ORIGINS = [
     "http://127.0.0.1:5173",
     "http://127.0.0.1:8000",
 ]
+
+# In demo mode (Railway), allow all origins for the demo deployment
+if os.getenv("DEMO_MODE", "false").lower() == "true":
+    ALLOWED_ORIGINS = ["*"]
