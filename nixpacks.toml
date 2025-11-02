@@ -1,5 +1,7 @@
+providers = ['node', 'python']
+
 [phases.setup]
-nixPkgs = ['nodejs_20','libsndfile', 'pkg-config']
+nixPkgs = ['...', 'libsndfile', 'pkg-config']
 
 [phases.install]
 cmds = [
