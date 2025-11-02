@@ -2,16 +2,17 @@
 
 from typing import Optional
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 
 from app.config import ITEMS_PER_PAGE
-from app.database import db
+from app.db_connection import db, get_db_connection
 
 router = APIRouter()
 
 
 @router.get("")
 async def search_samples(
+    request: Request,
     q: Optional[str] = None,
     tags: Optional[str] = None,  # Comma-separated tag IDs
     mode: str = "and",  # 'and' or 'or' for tag filtering
@@ -21,7 +22,7 @@ async def search_samples(
     """Search samples by text and/or tags"""
     offset = (page - 1) * limit
 
-    with db.get_connection() as conn:
+    with get_db_connection(request) as conn:
         # Build base query
         if q and tags:
             # Full-text search + tag filtering

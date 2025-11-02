@@ -2,16 +2,20 @@
 
 import asyncio
 import json
+import os
 from pathlib import Path
 from typing import Any, List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
-from app.database import db
+from app.db_connection import db, get_db_connection
 from app.services.scanner import scan_folders, scan_folders_with_progress
 
 router = APIRouter()
+
+# Check if demo mode
+DEMO_MODE = os.getenv("DEMO_MODE", "false").lower() == "true"
 
 
 class FolderBrowseResponse(BaseModel):
@@ -66,9 +70,9 @@ async def browse_filesystem(path: str = None) -> dict[str, Any]:
 
 
 @router.get("/scanned")
-async def get_scanned_folders():
+async def get_scanned_folders(request: Request):
     """Get all scanned folders"""
-    with db.get_connection() as conn:
+    with get_db_connection(request) as conn:
         cursor = conn.execute(
             "SELECT id, path, last_scanned, sample_count, status FROM folders ORDER BY last_scanned DESC"
         )
@@ -77,28 +81,36 @@ async def get_scanned_folders():
 
 
 @router.post("/scan")
-async def start_scan(request: ScanRequest, background_tasks: BackgroundTasks):
+async def start_scan(request: Request, scan_request: ScanRequest, background_tasks: BackgroundTasks):
     """Start scanning folder(s) - scans happen in background"""
+
+    # Disable in demo mode
+    if DEMO_MODE:
+        raise HTTPException(
+            status_code=403,
+            detail="Folder scanning is disabled in demo mode. Demo folders are pre-loaded."
+        )
+
     # Add folders to tracking
-    with db.get_connection() as conn:
-        for path in request.paths:
+    with get_db_connection(request) as conn:
+        for path in scan_request.paths:
             conn.execute("INSERT OR IGNORE INTO folders (path, status) VALUES (?, ?)", (path, "pending"))
         conn.commit()
 
     # Start scanning in background
-    background_tasks.add_task(scan_folders, request.paths)
+    background_tasks.add_task(scan_folders, scan_request.paths)
 
     return {
         "status": "started",
-        "message": f"Scan initiated for {len(request.paths)} folder(s)",
-        "paths": request.paths,
+        "message": f"Scan initiated for {len(scan_request.paths)} folder(s)",
+        "paths": scan_request.paths,
     }
 
 
 @router.delete("/{folder_id}")
-async def remove_folder(folder_id: int):
+async def remove_folder(request: Request, folder_id: int):
     """Remove folder from tracking"""
-    with db.get_connection() as conn:
+    with get_db_connection(request) as conn:
         cursor = conn.execute("DELETE FROM folders WHERE id = ?", (folder_id,))
         conn.commit()
 
@@ -114,6 +126,15 @@ async def websocket_scan_endpoint(websocket: WebSocket):
     await websocket.accept()
 
     try:
+        # Block in demo mode
+        if DEMO_MODE:
+            await websocket.send_json({
+                "type": "error",
+                "message": "Folder scanning is disabled in demo mode. Demo folders are pre-loaded."
+            })
+            await websocket.close()
+            return
+
         # Receive scan request
         data = await websocket.receive_text()
         request_data = json.loads(data)
@@ -125,6 +146,7 @@ async def websocket_scan_endpoint(websocket: WebSocket):
             return
 
         # Add folders to tracking
+        # Note: WebSocket doesn't have request.state.session_id, so in demo mode this won't be called
         with db.get_connection() as conn:
             for path in folder_paths:
                 conn.execute("INSERT OR IGNORE INTO folders (path, status) VALUES (?, ?)", (path, "pending"))

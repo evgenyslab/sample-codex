@@ -2,10 +2,10 @@
 
 from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from app.database import db
+from app.db_connection import db, get_db_connection
 
 router = APIRouter()
 
@@ -30,18 +30,18 @@ class BulkUpdateTagsRequest(BaseModel):
 
 
 @router.get("")
-async def list_tags():
+async def list_tags(request: Request):
     """List all tags"""
-    with db.get_connection() as conn:
+    with get_db_connection(request) as conn:
         cursor = conn.execute("SELECT * FROM tags ORDER BY name")
         tags = [dict(row) for row in cursor.fetchall()]
         return {"tags": tags}
 
 
 @router.post("")
-async def create_tag(tag: Tag):
+async def create_tag(request: Request, tag: Tag):
     """Create a new tag"""
-    with db.get_connection() as conn:
+    with get_db_connection(request) as conn:
         try:
             cursor = conn.execute(
                 "INSERT INTO tags (name, color, auto_generated) VALUES (?, ?, ?)",
@@ -56,9 +56,9 @@ async def create_tag(tag: Tag):
 
 
 @router.put("/{tag_id}")
-async def update_tag(tag_id: int, tag: Tag):
+async def update_tag(request: Request, tag_id: int, tag: Tag):
     """Update tag (system tags can only update color)"""
-    with db.get_connection() as conn:
+    with get_db_connection(request) as conn:
         # Check if tag is a system tag
         existing = conn.execute("SELECT is_system FROM tags WHERE id = ?", (tag_id,)).fetchone()
         if not existing:
@@ -81,9 +81,9 @@ async def update_tag(tag_id: int, tag: Tag):
 
 
 @router.delete("/{tag_id}")
-async def delete_tag(tag_id: int):
+async def delete_tag(request: Request, tag_id: int):
     """Delete tag (system tags cannot be deleted)"""
-    with db.get_connection() as conn:
+    with get_db_connection(request) as conn:
         # Check if tag is a system tag
         tag = conn.execute("SELECT is_system, name FROM tags WHERE id = ?", (tag_id,)).fetchone()
         if not tag:
@@ -102,32 +102,32 @@ async def delete_tag(tag_id: int):
 
 
 @router.post("/samples/{sample_id}/tags")
-async def add_tags_to_sample(sample_id: int, request: AddTagsRequest):
+async def add_tags_to_sample(request: Request, sample_id: int, add_request: AddTagsRequest):
     """Add tags to a sample"""
-    with db.get_connection() as conn:
+    with get_db_connection(request) as conn:
         # Verify sample exists
         sample = conn.execute("SELECT id FROM samples WHERE id = ?", (sample_id,)).fetchone()
         if not sample:
             raise HTTPException(status_code=404, detail="Sample not found")
 
         # Add tags
-        for tag_id in request.tag_ids:
+        for tag_id in add_request.tag_ids:
             try:
                 conn.execute(
                     "INSERT OR IGNORE INTO sample_tags (sample_id, tag_id, confidence) VALUES (?, ?, ?)",
-                    (sample_id, tag_id, request.confidence),
+                    (sample_id, tag_id, add_request.confidence),
                 )
             except Exception as e:
                 raise HTTPException(status_code=400, detail=f"Error adding tag {tag_id}: {str(e)}")
 
         conn.commit()
-        return {"status": "tags added", "sample_id": sample_id, "tag_ids": request.tag_ids}
+        return {"status": "tags added", "sample_id": sample_id, "tag_ids": add_request.tag_ids}
 
 
 @router.delete("/samples/{sample_id}/tags/{tag_id}")
-async def remove_tag_from_sample(sample_id: int, tag_id: int):
+async def remove_tag_from_sample(request: Request, sample_id: int, tag_id: int):
     """Remove tag from sample"""
-    with db.get_connection() as conn:
+    with get_db_connection(request) as conn:
         cursor = conn.execute("DELETE FROM sample_tags WHERE sample_id = ? AND tag_id = ?", (sample_id, tag_id))
         conn.commit()
 
@@ -138,7 +138,7 @@ async def remove_tag_from_sample(sample_id: int, tag_id: int):
 
 
 @router.post("/bulk")
-async def bulk_update_sample_tags(request: BulkUpdateTagsRequest):
+async def bulk_update_sample_tags(request: Request, bulk_request: BulkUpdateTagsRequest):
     """
     Bulk update tags for multiple samples
 
@@ -147,20 +147,20 @@ async def bulk_update_sample_tags(request: BulkUpdateTagsRequest):
     - Tags in add_tag_ids will be added (if not already present)
     - Tags in remove_tag_ids will be removed (if present)
     """
-    with db.get_connection() as conn:
+    with get_db_connection(request) as conn:
         # Verify all samples exist
-        placeholders = ",".join("?" * len(request.sample_ids))
-        cursor = conn.execute(f"SELECT id FROM samples WHERE id IN ({placeholders})", request.sample_ids)
+        placeholders = ",".join("?" * len(bulk_request.sample_ids))
+        cursor = conn.execute(f"SELECT id FROM samples WHERE id IN ({placeholders})", bulk_request.sample_ids)
         existing_samples = {row["id"] for row in cursor.fetchall()}
 
-        if len(existing_samples) != len(request.sample_ids):
-            missing = set(request.sample_ids) - existing_samples
+        if len(existing_samples) != len(bulk_request.sample_ids):
+            missing = set(bulk_request.sample_ids) - existing_samples
             raise HTTPException(status_code=404, detail=f"Samples not found: {missing}")
 
         # Process tag additions
         added_count = 0
-        for sample_id in request.sample_ids:
-            for tag_id in request.add_tag_ids:
+        for sample_id in bulk_request.sample_ids:
+            for tag_id in bulk_request.add_tag_ids:
                 try:
                     conn.execute(
                         "INSERT OR IGNORE INTO sample_tags (sample_id, tag_id, confidence) VALUES (?, ?, ?)",
@@ -175,8 +175,8 @@ async def bulk_update_sample_tags(request: BulkUpdateTagsRequest):
 
         # Process tag removals
         removed_count = 0
-        for sample_id in request.sample_ids:
-            for tag_id in request.remove_tag_ids:
+        for sample_id in bulk_request.sample_ids:
+            for tag_id in bulk_request.remove_tag_ids:
                 cursor = conn.execute("DELETE FROM sample_tags WHERE sample_id = ? AND tag_id = ?", (sample_id, tag_id))
                 removed_count += cursor.rowcount
 
@@ -184,12 +184,12 @@ async def bulk_update_sample_tags(request: BulkUpdateTagsRequest):
 
         return {
             "status": "success",
-            "samples_updated": len(request.sample_ids),
+            "samples_updated": len(bulk_request.sample_ids),
             "tags_added": added_count,
             "tags_removed": removed_count,
             "details": {
-                "sample_ids": request.sample_ids,
-                "add_tag_ids": request.add_tag_ids,
-                "remove_tag_ids": request.remove_tag_ids,
+                "sample_ids": bulk_request.sample_ids,
+                "add_tag_ids": bulk_request.add_tag_ids,
+                "remove_tag_ids": bulk_request.remove_tag_ids,
             },
         }

@@ -1,16 +1,23 @@
 """Sample management API endpoints"""
 
+import os
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from app.config import ITEMS_PER_PAGE
-from app.database import db
+from app.db_connection import db, get_db_connection
 
 router = APIRouter()
+
+# Check if demo mode
+DEMO_MODE = os.getenv("DEMO_MODE", "false").lower() == "true"
+
+if DEMO_MODE:
+    from app.demo.scanner import get_demo_audio_path
 
 
 class Sample(BaseModel):
@@ -30,6 +37,7 @@ class SampleUpdate(BaseModel):
 
 @router.get("")
 async def list_samples(
+    request: Request,
     page: int = 1,
     limit: int = ITEMS_PER_PAGE,
     folder_id: Optional[int] = None,
@@ -39,7 +47,7 @@ async def list_samples(
     """List samples with pagination and optional filtering by folder and tags"""
     offset = (page - 1) * limit
 
-    with db.get_connection() as conn:
+    with get_db_connection(request) as conn:
         # Parse tag IDs
         include_tag_ids = [int(tid) for tid in tags.split(",")] if tags else []
         exclude_tag_ids = [int(tid) for tid in exclude_tags.split(",")] if exclude_tags else []
@@ -154,9 +162,9 @@ async def list_samples(
 
 
 @router.get("/{sample_id}")
-async def get_sample(sample_id: int):
+async def get_sample(request: Request, sample_id: int):
     """Get sample details including tags"""
-    with db.get_connection() as conn:
+    with get_db_connection(request) as conn:
         # Get sample
         sample = conn.execute("SELECT * FROM samples WHERE id = ?", (sample_id,)).fetchone()
 
@@ -194,15 +202,25 @@ async def get_sample(sample_id: int):
 
 
 @router.get("/{sample_id}/audio")
-async def stream_audio(sample_id: int):
+async def stream_audio(request: Request, sample_id: int):
     """Stream audio file for playback"""
-    with db.get_connection() as conn:
+    with get_db_connection(request) as conn:
         sample = conn.execute("SELECT filepath, format FROM samples WHERE id = ?", (sample_id,)).fetchone()
 
         if not sample:
             raise HTTPException(status_code=404, detail="Sample not found")
 
-        filepath = Path(sample["filepath"])
+        filepath_str = sample["filepath"]
+
+        # In demo mode, serve from demo audio folder
+        if DEMO_MODE and filepath_str.startswith("/demo/audio/"):
+            demo_root = get_demo_audio_path()
+            # Remove /demo/audio/ prefix and construct path
+            relative_path = filepath_str.replace("/demo/audio/", "")
+            filepath = demo_root / relative_path
+        else:
+            filepath = Path(filepath_str)
+
         if not filepath.exists():
             raise HTTPException(status_code=404, detail="Audio file not found on disk")
 
@@ -226,9 +244,9 @@ async def stream_audio(sample_id: int):
 
 
 @router.put("/{sample_id}")
-async def update_sample(sample_id: int, update: SampleUpdate):
+async def update_sample(request: Request, sample_id: int, update: SampleUpdate):
     """Update sample metadata"""
-    with db.get_connection() as conn:
+    with get_db_connection(request) as conn:
         fields = []
         params = []
 
@@ -252,9 +270,9 @@ async def update_sample(sample_id: int, update: SampleUpdate):
 
 
 @router.delete("/{sample_id}")
-async def delete_sample(sample_id: int):
+async def delete_sample(request: Request, sample_id: int):
     """Delete sample record"""
-    with db.get_connection() as conn:
+    with get_db_connection(request) as conn:
         cursor = conn.execute("DELETE FROM samples WHERE id = ?", (sample_id,))
         conn.commit()
 

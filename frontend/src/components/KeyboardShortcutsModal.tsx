@@ -26,6 +26,14 @@ const SHORTCUTS: ShortcutSection[] = [
     ],
   },
   {
+    title: 'View',
+    shortcuts: [
+      { keys: ['1'], description: 'Toggle tag filter pane' },
+      { keys: ['2'], description: 'Toggle collection pane' },
+      { keys: ['3'], description: 'Toggle folder pane' },
+    ],
+  },
+  {
     title: 'Navigation',
     shortcuts: [
       { keys: ['↑'], description: 'Select previous sample' },

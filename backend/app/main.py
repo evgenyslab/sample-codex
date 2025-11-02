@@ -1,6 +1,7 @@
 """FastAPI application entry point"""
 
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -9,12 +10,21 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import ALLOWED_ORIGINS, FRONTEND_BUILD_DIR
-from app.database import db
+from app.db_connection import db
 from app.routers import collections, folders, samples, search, tags
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
+
+# Check if demo mode is enabled
+DEMO_MODE = os.getenv("DEMO_MODE", "false").lower() == "true"
+
+if DEMO_MODE:
+    from app.demo.middleware import DemoSessionMiddleware
+    logger.info("🎭 DEMO MODE ENABLED - Using in-memory session databases")
+else:
+    logger.info("📦 PRODUCTION MODE - Using persistent database")
 
 
 @asynccontextmanager
@@ -48,6 +58,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Add demo session middleware if in demo mode
+if DEMO_MODE:
+    app.add_middleware(DemoSessionMiddleware)
+    logger.info("Demo session middleware enabled")
+
 # API routes
 app.include_router(folders.router, prefix="/api/folders", tags=["folders"])
 app.include_router(samples.router, prefix="/api/samples", tags=["samples"])
@@ -60,10 +75,12 @@ app.include_router(search.router, prefix="/api/search", tags=["search"])
 async def health_check():
     """Health check endpoint"""
     db_healthy = db.check_health()
+    db_path = ":memory: (demo mode)" if DEMO_MODE else str(getattr(db, 'db_path', 'unknown'))
     return {
         "status": "healthy" if db_healthy else "unhealthy",
         "database": db_healthy,
-        "database_path": str(db.db_path),
+        "database_path": db_path,
+        "demo_mode": DEMO_MODE,
     }
 
 

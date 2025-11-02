@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { ThemeProvider } from './contexts/ThemeContext'
 import { AudioPlayerProvider, useAudioPlayer } from './contexts/AudioPlayerContext'
 import Startup from './pages/Startup'
@@ -10,8 +10,8 @@ import Tags from './pages/Tags'
 import Collections from './pages/Collections'
 import Search from './pages/Search'
 import KeyboardShortcutsModal from './components/KeyboardShortcutsModal'
-import SamplePlayer from './components/SamplePlayer/SamplePlayer'
-import { useState, useEffect, useRef } from 'react'
+import DemoBanner from './components/DemoBanner'
+import { useState, useEffect } from 'react'
 import './index.css'
 
 const queryClient = new QueryClient({
@@ -56,6 +56,7 @@ function AppContent() {
 
   return (
     <>
+      <DemoBanner />
       <Routes>
         <Route path="/" element={<Startup />} />
         <Route path="/dashboard" element={<Dashboard />} />

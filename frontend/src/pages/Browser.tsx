@@ -523,6 +523,18 @@ export default function Browser() {
         }
 
         setIsCollectionPopupOpen(true)
+      } else if (e.key === '1') {
+        // Toggle tag filter pane
+        e.preventDefault()
+        setIsLeftPaneVisible(prev => !prev)
+      } else if (e.key === '2') {
+        // Toggle collection pane
+        e.preventDefault()
+        setIsCollectionPaneVisible(prev => !prev)
+      } else if (e.key === '3') {
+        // Toggle folder pane
+        e.preventDefault()
+        setIsFolderPaneVisible(prev => !prev)
       }
     }
 
