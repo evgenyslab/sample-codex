@@ -239,7 +239,12 @@ async def stream_audio(request: Request, sample_id: int):
             filepath,
             media_type=media_type,
             filename=filepath.name,
-            headers={"Accept-Ranges": "bytes"},
+            headers={
+                "Accept-Ranges": "bytes",
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, OPTIONS",
+                "Access-Control-Allow-Headers": "*",
+            },
         )
 
 

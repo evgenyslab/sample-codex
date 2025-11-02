@@ -75,6 +75,65 @@ The application will be available at:
 - Backend API: http://localhost:8000
 - API Documentation: http://localhost:8000/docs
 
+## Demo Mode (Railway Deployment)
+
+Demo mode runs the application with isolated, in-memory session databases that automatically expire after 1 hour of inactivity. This is ideal for public deployments where you want to give users a sandbox experience without affecting other users' data.
+
+### Building the Demo Frontend
+
+The demo frontend is built with relative API URLs to work with any deployment:
+
+```bash
+cd frontend
+VITE_API_URL=/api npm run build -- --outDir=demo-dist --mode=production
+```
+
+This creates a production build in `frontend/demo-dist/` with:
+- Relative API URLs (`/api` instead of `http://localhost:8000/api`)
+- Optimized bundles with minification
+- Static assets ready for deployment
+
+### Running in Demo Mode
+
+**Option 1: Using the demo startup script:**
+```bash
+bash start_demo.sh
+```
+
+**Option 2: Manual start:**
+```bash
+DEMO_MODE=true python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+The backend will automatically serve the pre-built frontend from `frontend/demo-dist/` when it exists.
+
+### Demo Mode Features
+
+When `DEMO_MODE=true` is set:
+- **Session Isolation**: Each user gets their own in-memory SQLite database
+- **Session Management**: Sessions expire after 1 hour of inactivity (LRU eviction)
+- **Pre-loaded Data**: Demo samples and tags are automatically loaded
+- **Disabled Features**:
+  - Folder browsing and scanning (prevents filesystem access)
+  - Database clearing (sessions are already temporary)
+- **Banner Display**: Shows a banner informing users about demo mode limitations
+
+### Deployment (Railway)
+
+The application is configured for Railway deployment using the provided `Dockerfile`:
+
+1. **Set Environment Variables** in Railway dashboard:
+   ```
+   DEMO_MODE=true
+   ```
+
+2. **Deploy**: Railway will automatically:
+   - Build the Docker image
+   - Install Python and Node.js dependencies
+   - Serve the application on the assigned port
+
+The backend serves both the API (at `/api/*`) and the pre-built frontend (at `/`).
+
 ## Development
 
 ### Code Formatting
