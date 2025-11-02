@@ -18,7 +18,9 @@ HOST = "127.0.0.1"
 PORT = 8000
 
 # Frontend settings (for production build)
-FRONTEND_BUILD_DIR = BASE_DIR.parent / "frontend" / "dist"
+# Use demo-dist for Railway demo deployment, dist for local production
+import os
+FRONTEND_BUILD_DIR = BASE_DIR.parent / "frontend" / ("demo-dist" if os.getenv("DEMO_MODE") else "dist")
 
 # Pagination
 ITEMS_PER_PAGE = 100

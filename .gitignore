@@ -215,7 +215,7 @@ node_modules/
 jspm_packages/
 
 # Production builds
-/frontend/dist/
+# /frontend/dist/  # Uncommented for Railway deployment - we commit the built frontend
 /frontend/build/
 
 # Testing
