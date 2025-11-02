@@ -22,6 +22,7 @@ DEMO_MODE = os.getenv("DEMO_MODE", "false").lower() == "true"
 
 if DEMO_MODE:
     from app.demo.middleware import DemoSessionMiddleware
+
     logger.info("🎭 DEMO MODE ENABLED - Using in-memory session databases")
 else:
     logger.info("📦 PRODUCTION MODE - Using persistent database")
@@ -75,7 +76,7 @@ app.include_router(search.router, prefix="/api/search", tags=["search"])
 async def health_check():
     """Health check endpoint"""
     db_healthy = db.check_health()
-    db_path = ":memory: (demo mode)" if DEMO_MODE else str(getattr(db, 'db_path', 'unknown'))
+    db_path = ":memory: (demo mode)" if DEMO_MODE else str(getattr(db, "db_path", "unknown"))
     return {
         "status": "healthy" if db_healthy else "unhealthy",
         "database": db_healthy,
@@ -87,6 +88,15 @@ async def health_check():
 @app.post("/api/database/clear")
 async def clear_all_data():
     """Clear all data from the database"""
+    # Disable in demo mode
+    if DEMO_MODE:
+        from fastapi import HTTPException
+
+        raise HTTPException(
+            status_code=403,
+            detail="Database clearing is disabled in demo mode. Your session data is already isolated and temporary.",
+        )
+
     success = db.clear_all_data()
     if success:
         return {"status": "success", "message": "All data has been cleared from the database"}

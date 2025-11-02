@@ -20,7 +20,7 @@ def get_db_connection(request=None):
     Returns:
         sqlite3.Connection
     """
-    if DEMO_MODE and request and hasattr(request.state, 'session_id'):
+    if DEMO_MODE and request and hasattr(request.state, "session_id"):
         return _db.get_connection(session_id=request.state.session_id)
     elif DEMO_MODE:
         return _db.get_connection(session_id="default")

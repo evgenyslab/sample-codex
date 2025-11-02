@@ -41,10 +41,7 @@ async def browse_filesystem(path: str = None) -> dict[str, Any]:
     """Browse filesystem directories"""
     # Disable in demo mode
     if DEMO_MODE:
-        raise HTTPException(
-            status_code=403,
-            detail="Folder browsing is disabled in demo mode."
-        )
+        raise HTTPException(status_code=403, detail="Folder browsing is disabled in demo mode.")
 
     try:
         # Default to user's home directory
@@ -94,8 +91,7 @@ async def start_scan(request: Request, scan_request: ScanRequest, background_tas
     # Disable in demo mode
     if DEMO_MODE:
         raise HTTPException(
-            status_code=403,
-            detail="Folder scanning is disabled in demo mode. Demo folders are pre-loaded."
+            status_code=403, detail="Folder scanning is disabled in demo mode. Demo folders are pre-loaded."
         )
 
     # Add folders to tracking
@@ -135,10 +131,9 @@ async def websocket_scan_endpoint(websocket: WebSocket):
     try:
         # Block in demo mode
         if DEMO_MODE:
-            await websocket.send_json({
-                "type": "error",
-                "message": "Folder scanning is disabled in demo mode. Demo folders are pre-loaded."
-            })
+            await websocket.send_json(
+                {"type": "error", "message": "Folder scanning is disabled in demo mode. Demo folders are pre-loaded."}
+            )
             await websocket.close()
             return
 

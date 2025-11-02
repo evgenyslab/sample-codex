@@ -155,8 +155,7 @@ def populate_tags(conn: sqlite3.Connection) -> dict[str, int]:
 
     for tag in DEMO_TAGS:
         cursor = conn.execute(
-            "INSERT INTO tags (name, color, auto_generated) VALUES (?, ?, ?)",
-            (tag["name"], tag["color"], 1)
+            "INSERT INTO tags (name, color, auto_generated) VALUES (?, ?, ?)", (tag["name"], tag["color"], 1)
         )
         tag_ids[tag["name"]] = cursor.lastrowid
 
@@ -170,20 +169,23 @@ def populate_samples(conn: sqlite3.Connection, samples: list[dict], tag_ids: dic
 
     for sample in samples:
         # Insert sample
-        cursor = conn.execute("""
+        cursor = conn.execute(
+            """
             INSERT INTO samples
             (filepath, filename, file_hash, file_size, duration, sample_rate, format, channels, indexed)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
-        """, (
-            sample["filepath"],
-            sample["filename"],
-            sample["file_hash"],
-            sample["file_size"],
-            sample["duration"],
-            sample["sample_rate"],
-            sample["format"],
-            sample["channels"]
-        ))
+        """,
+            (
+                sample["filepath"],
+                sample["filename"],
+                sample["file_hash"],
+                sample["file_size"],
+                sample["duration"],
+                sample["sample_rate"],
+                sample["format"],
+                sample["channels"],
+            ),
+        )
         sample_id = cursor.lastrowid
 
         # Auto-assign tag based on folder name
@@ -191,7 +193,7 @@ def populate_samples(conn: sqlite3.Connection, samples: list[dict], tag_ids: dic
         if folder_name in tag_ids:
             conn.execute(
                 "INSERT INTO sample_tags (sample_id, tag_id, confidence) VALUES (?, ?, 1.0)",
-                (sample_id, tag_ids[folder_name])
+                (sample_id, tag_ids[folder_name]),
             )
 
         # Also check filename for keywords and assign additional tags
@@ -201,7 +203,7 @@ def populate_samples(conn: sqlite3.Connection, samples: list[dict], tag_ids: dic
                 try:
                     conn.execute(
                         "INSERT INTO sample_tags (sample_id, tag_id, confidence) VALUES (?, ?, 0.8)",
-                        (sample_id, tag_id)
+                        (sample_id, tag_id),
                     )
                 except sqlite3.IntegrityError:
                     pass  # Tag already assigned
@@ -215,10 +217,13 @@ def populate_folders(conn: sqlite3.Connection, folders: list[dict]):
     now = datetime.now().isoformat()
 
     for folder in folders:
-        conn.execute("""
+        conn.execute(
+            """
             INSERT INTO folders (path, last_scanned, sample_count, status)
             VALUES (?, ?, ?, 'active')
-        """, (folder["path"], now, folder["sample_count"]))
+        """,
+            (folder["path"], now, folder["sample_count"]),
+        )
 
     conn.commit()
     logger.info(f"Created {len(folders)} folder entries")
@@ -228,19 +233,25 @@ def populate_collections(conn: sqlite3.Connection, sample_count: int):
     """Create demo collections with some samples"""
 
     for collection in DEMO_COLLECTIONS:
-        cursor = conn.execute("""
+        cursor = conn.execute(
+            """
             INSERT INTO collections (name, description)
             VALUES (?, ?)
-        """, (collection["name"], collection["description"]))
+        """,
+            (collection["name"], collection["description"]),
+        )
         collection_id = cursor.lastrowid
 
         # Add first 3-5 samples to each collection
         for i in range(1, min(6, sample_count + 1)):
             try:
-                conn.execute("""
+                conn.execute(
+                    """
                     INSERT INTO collection_items (collection_id, sample_id, alias, order_index)
                     VALUES (?, ?, NULL, ?)
-                """, (collection_id, i, i))
+                """,
+                    (collection_id, i, i),
+                )
             except sqlite3.IntegrityError:
                 pass  # Sample might not exist
 

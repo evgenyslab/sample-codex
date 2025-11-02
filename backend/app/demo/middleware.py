@@ -36,7 +36,7 @@ class DemoSessionMiddleware(BaseHTTPMiddleware):
                 value=session_id,
                 max_age=3600,  # 1 hour
                 httponly=True,
-                samesite="lax"
+                samesite="lax",
             )
 
         return response

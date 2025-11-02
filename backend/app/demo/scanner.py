@@ -122,9 +122,11 @@ def get_demo_folders(samples: list[dict]) -> list[dict]:
 
     folders = []
     for folder_path, count in folder_counts.items():
-        folders.append({
-            "path": folder_path,
-            "sample_count": count,
-        })
+        folders.append(
+            {
+                "path": folder_path,
+                "sample_count": count,
+            }
+        )
 
     return folders
