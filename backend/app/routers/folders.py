@@ -39,6 +39,13 @@ class ScanRequest(BaseModel):
 @router.get("/browse")
 async def browse_filesystem(path: str = None) -> dict[str, Any]:
     """Browse filesystem directories"""
+    # Disable in demo mode
+    if DEMO_MODE:
+        raise HTTPException(
+            status_code=403,
+            detail="Folder browsing is disabled in demo mode."
+        )
+
     try:
         # Default to user's home directory
         if path is None or path == "":
