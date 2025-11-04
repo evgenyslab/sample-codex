@@ -1,12 +1,19 @@
 import { ChevronUpIcon, FolderIcon, SearchIcon, XIcon } from './ui/Icons';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { ReactElement } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { getFoldersMetadata } from '../services/api';
+import type { FolderMetadata } from '../types';
+
+// Constant empty arrays to avoid re-creating on every render
+const EMPTY_STRING_ARRAY: string[] = [];
 
 interface TreeNode {
   name: string;
   fullPath: string;
   children: Record<string, TreeNode>;
   isFile: boolean;
+  sampleCount?: number; // NEW: Count of samples in this folder
 }
 
 interface TreeResult {
@@ -15,7 +22,49 @@ interface TreeResult {
 }
 
 /**
- * Build a folder tree structure from flat paths
+ * Build a folder tree structure from folder metadata with counts
+ */
+function buildFolderTreeFromMetadata(folders: FolderMetadata[], commonRoot: string): TreeResult {
+  if (!folders || folders.length === 0) return { root: commonRoot || '', tree: {} };
+
+  const rootParts = commonRoot.split('/').filter(Boolean);
+
+  // Build tree structure
+  const tree: Record<string, TreeNode> = {};
+  folders.forEach(({ path, sample_count }) => {
+    const parts = path.split('/').filter(Boolean);
+    const relativeParts = parts.slice(rootParts.length);
+
+    if (relativeParts.length === 0) return;
+
+    let current = tree;
+    const folderPath: string[] = [];
+
+    relativeParts.forEach((part, index) => {
+      folderPath.push(part);
+      const isLeaf = index === relativeParts.length - 1;
+
+      if (!current[part]) {
+        current[part] = {
+          name: part,
+          fullPath: path,
+          children: {},
+          isFile: false,
+          sampleCount: isLeaf ? sample_count : undefined,
+        };
+      } else if (isLeaf && current[part]) {
+        // Update sample count for leaf nodes
+        current[part]!.sampleCount = sample_count;
+      }
+      current = current[part]!.children;
+    });
+  });
+
+  return { root: commonRoot, tree };
+}
+
+/**
+ * Build a folder tree structure from flat paths (legacy)
  */
 function buildFolderTree(paths: string[]): TreeResult {
   if (!paths || paths.length === 0) return { root: '', tree: {} };
@@ -89,6 +138,7 @@ interface FolderTreePaneProps {
   onRemoveExcluded?: (folderPath: string) => void;
   isVisible?: boolean;
   onToggleVisibility?: (visible: boolean) => void;
+  expandToPath?: string; // Path to expand to (will expand all parent folders)
 }
 
 /**
@@ -97,46 +147,72 @@ interface FolderTreePaneProps {
  * Click to include, Ctrl/Cmd+Click to exclude folders
  */
 export default function FolderTreePane({
-  samplePaths = [],
-  includedFolders = [],
-  excludedFolders = [],
+  samplePaths,
+  includedFolders,
+  excludedFolders,
   onFolderClick,
   onRemoveIncluded,
   onRemoveExcluded,
   isVisible = true,
   onToggleVisibility,
+  expandToPath,
 }: FolderTreePaneProps) {
+  // Use constant empty arrays if props not provided to avoid re-renders
+  const effectiveSamplePaths = samplePaths || EMPTY_STRING_ARRAY;
+  const effectiveIncludedFolders = includedFolders || EMPTY_STRING_ARRAY;
+  const effectiveExcludedFolders = excludedFolders || EMPTY_STRING_ARRAY;
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
   const [searchExpandedFolders, setSearchExpandedFolders] = useState<Record<string, boolean>>({});
 
-  // Build folder tree from sample paths
+  // Fetch folders metadata from backend
+  const { data: foldersData } = useQuery({
+    queryKey: ['folders-metadata'],
+    queryFn: async () => {
+      const response = await getFoldersMetadata();
+      return response.data;
+    },
+    enabled: !samplePaths, // Only fetch if not using legacy samplePaths prop
+  });
+
+  // Build folder tree from metadata or legacy sample paths
   const { tree } = useMemo(() => {
-    const paths = samplePaths.map(path => {
-      // Get directory path (remove filename)
-      const parts = path.split('/');
-      parts.pop(); // Remove filename
-      return parts.join('/');
-    }).filter((path, index, self) => path && self.indexOf(path) === index); // Unique directories
+    if (effectiveSamplePaths.length > 0) {
+      // Legacy: Build from sample paths
+      const paths = effectiveSamplePaths.map(path => {
+        const parts = path.split('/');
+        parts.pop(); // Remove filename
+        return parts.join('/');
+      }).filter((path, index, self) => path && self.indexOf(path) === index);
 
-    const result = buildFolderTree(paths);
+      const result = buildFolderTree(paths);
 
-    // Debug logging
-    if (import.meta.env.DEV) {
-      console.log('FolderTreePane - Sample paths:', samplePaths.length);
-      console.log('FolderTreePane - Unique directories:', paths.length);
-      console.log('FolderTreePane - Common root:', result.root);
-      console.log('FolderTreePane - Tree structure:', result.tree);
+      if (import.meta.env.DEV) {
+        console.log('FolderTreePane (legacy) - Sample paths:', effectiveSamplePaths.length);
+        console.log('FolderTreePane (legacy) - Unique directories:', paths.length);
+        console.log('FolderTreePane (legacy) - Common root:', result.root);
+      }
+
+      return result;
+    } else if (foldersData) {
+      // New: Build from metadata
+      const result = buildFolderTreeFromMetadata(foldersData.folders, foldersData.common_root);
+
+      if (import.meta.env.DEV) {
+        console.log('FolderTreePane (metadata) - Folders:', foldersData.folders.length);
+        console.log('FolderTreePane (metadata) - Common root:', foldersData.common_root);
+        console.log('FolderTreePane (metadata) - Tree structure:', result.tree);
+      }
+
+      return result;
     }
-
-    return result;
-  }, [samplePaths]);
+    return { tree: {} };
+  }, [effectiveSamplePaths, foldersData]);
 
   // Filter folders based on search and collect paths to expand
-  const filteredTree = useMemo(() => {
+  const { filteredTree, expandMap } = useMemo(() => {
     if (!searchQuery) {
-      setSearchExpandedFolders({});
-      return tree;
+      return { filteredTree: tree, expandMap: {} };
     }
 
     const toExpand: Record<string, boolean> = {};
@@ -169,9 +245,38 @@ export default function FolderTreePane({
     };
 
     const result = filterTree(tree);
-    setSearchExpandedFolders(toExpand);
-    return result;
+    return { filteredTree: result, expandMap: toExpand };
   }, [tree, searchQuery]);
+
+  // Update search expanded folders when expandMap changes
+  useEffect(() => {
+    setSearchExpandedFolders(expandMap);
+  }, [expandMap]);
+
+  // Expand to specific path when expandToPath changes
+  useEffect(() => {
+    if (!expandToPath) return;
+
+    // Build list of all parent paths that need to be expanded
+    const pathsToExpand: Record<string, boolean> = {};
+
+    // Walk up the path hierarchy and mark all parents for expansion
+    let currentPath = expandToPath;
+    while (currentPath && currentPath !== '/') {
+      pathsToExpand[currentPath] = true;
+
+      // Get parent path
+      const lastSlashIndex = currentPath.lastIndexOf('/');
+      if (lastSlashIndex <= 0) break;
+      currentPath = currentPath.substring(0, lastSlashIndex);
+    }
+
+    // Update expanded folders state
+    setExpandedFolders(prev => ({
+      ...prev,
+      ...pathsToExpand
+    }));
+  }, [expandToPath]);
 
   const toggleExpanded = (path: string) => {
     setExpandedFolders(prev => ({
@@ -209,17 +314,17 @@ export default function FolderTreePane({
         ? searchExpandedFolders[value.fullPath] || expandedFolders[value.fullPath]
         : expandedFolders[value.fullPath];
       const hasChildren = Object.keys(value.children).length > 0;
-      const isIncluded = includedFolders.includes(value.fullPath);
-      const isExcluded = excludedFolders.includes(value.fullPath);
+      const isIncluded = effectiveIncludedFolders.includes(value.fullPath);
+      const isExcluded = effectiveExcludedFolders.includes(value.fullPath);
 
       // Check if any child folder is selected (for parent highlighting)
       const normalizedPath = value.fullPath.endsWith('/') ? value.fullPath : value.fullPath + '/';
-      const hasSelectedChild = includedFolders.some(folder =>
+      const hasSelectedChild = effectiveIncludedFolders.some(folder =>
         folder !== value.fullPath && folder.startsWith(normalizedPath)
-      ) || excludedFolders.some(excluded =>
+      ) || effectiveExcludedFolders.some(excluded =>
         excluded !== value.fullPath && excluded.startsWith(normalizedPath)
       );
-      const hasExcludedChild = excludedFolders.some(folder =>
+      const hasExcludedChild = effectiveExcludedFolders.some(folder =>
         folder !== value.fullPath && folder.startsWith(normalizedPath)
       );
 
@@ -263,7 +368,14 @@ export default function FolderTreePane({
               onClick={(e) => handleFolderClick(value.fullPath, e.ctrlKey || e.metaKey)}
               title={`${value.fullPath}\nClick to include, Ctrl/Cmd+Click to exclude`}
             >
-              <span className="truncate">{value.name}</span>
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="truncate">{value.name}</span>
+                {value.sampleCount !== undefined && (
+                  <span className="text-xs text-muted-foreground font-mono flex-shrink-0">
+                    {value.sampleCount}
+                  </span>
+                )}
+              </div>
 
               {/* Remove Button */}
               {(isIncluded || isExcluded || hasSelectedChild) && (
@@ -277,12 +389,12 @@ export default function FolderTreePane({
                     } else if (hasSelectedChild) {
                       // Remove all child filters
                       const normalizedPath = value.fullPath.endsWith('/') ? value.fullPath : value.fullPath + '/';
-                      includedFolders.forEach(folder => {
+                      effectiveIncludedFolders.forEach(folder => {
                         if (folder.startsWith(normalizedPath) && onRemoveIncluded) {
                           onRemoveIncluded(folder);
                         }
                       });
-                      excludedFolders.forEach(folder => {
+                      effectiveExcludedFolders.forEach(folder => {
                         if (folder.startsWith(normalizedPath) && onRemoveExcluded) {
                           onRemoveExcluded(folder);
                         }
@@ -346,19 +458,19 @@ export default function FolderTreePane({
         </div>
 
         {/* Active Filters Summary */}
-        {(includedFolders.length > 0 || excludedFolders.length > 0) && (
+        {(effectiveIncludedFolders.length > 0 || effectiveExcludedFolders.length > 0) && (
           <div className="px-3 py-2 border-t border-border bg-muted/50">
             <div className="text-xs text-muted-foreground space-y-1">
-              {includedFolders.length > 0 && (
+              {effectiveIncludedFolders.length > 0 && (
                 <div className="flex items-center gap-1">
                   <span className="font-medium">Include:</span>
-                  <span>{includedFolders.length}</span>
+                  <span>{effectiveIncludedFolders.length}</span>
                 </div>
               )}
-              {excludedFolders.length > 0 && (
+              {effectiveExcludedFolders.length > 0 && (
                 <div className="flex items-center gap-1">
                   <span className="font-medium">Exclude:</span>
-                  <span>{excludedFolders.length}</span>
+                  <span>{effectiveExcludedFolders.length}</span>
                 </div>
               )}
             </div>

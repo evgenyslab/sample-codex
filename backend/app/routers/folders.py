@@ -84,6 +84,60 @@ async def get_scanned_folders(request: Request):
         return {"folders": folders}
 
 
+@router.get("/metadata")
+async def get_folders_metadata(request: Request):
+    """Get all unique folder paths from file locations with counts (for filter pane)"""
+    with get_db_connection(request) as conn:
+        # Get all unique file paths (directories only)
+        query = """
+            SELECT DISTINCT fl.file_path
+            FROM file_locations fl
+            JOIN files f ON fl.file_id = f.id
+            WHERE f.indexed = 1 AND fl.is_primary = 1
+            ORDER BY fl.file_path
+        """
+        cursor = conn.execute(query)
+        all_paths = [row["file_path"] for row in cursor.fetchall()]
+
+        if not all_paths:
+            return {"folders": [], "common_root": ""}
+
+        # Extract directory paths and count samples in each
+        from collections import defaultdict
+        import os
+
+        folder_counts = defaultdict(int)
+        for path in all_paths:
+            dir_path = os.path.dirname(path)
+            # Count this file in this directory and all parent directories
+            parts = dir_path.split(os.sep)
+            for i in range(1, len(parts) + 1):
+                folder = os.sep.join(parts[:i])
+                if folder:  # Skip empty strings
+                    folder_counts[folder] += 1
+
+        # Find common root path
+        if all_paths:
+            common_parts = all_paths[0].split(os.sep)[:-1]  # Exclude filename
+            for path in all_paths[1:]:
+                path_parts = path.split(os.sep)[:-1]
+                common_parts = [
+                    p for i, p in enumerate(common_parts)
+                    if i < len(path_parts) and p == path_parts[i]
+                ]
+            common_root = os.sep.join(common_parts) if common_parts else os.sep
+        else:
+            common_root = ""
+
+        # Convert to list of dicts
+        folders = [
+            {"path": path, "sample_count": count}
+            for path, count in sorted(folder_counts.items())
+        ]
+
+        return {"folders": folders, "common_root": common_root}
+
+
 @router.post("/scan")
 async def start_scan(request: Request, scan_request: ScanRequest, background_tasks: BackgroundTasks):
     """Start scanning folder(s) - scans happen in background"""

@@ -5,7 +5,7 @@ import type { Sample, Tag } from '../../types';
 import { TagFilledIcon, TagIcon } from '../ui/Icons';
 import { useEffect, useMemo, useState } from 'react';
 
-import { createTag } from '../../services/api';
+import { createTag, getBulkTagStates } from '../../services/api';
 
 type TagState = 'checked' | 'unchecked' | 'indeterminate';
 
@@ -57,27 +57,53 @@ export default function TagPopup({
   useEffect(() => {
     if (!isOpen || selectedSampleIds.length === 0) return;
 
-    const states: TagStates = {};
     const selectedSamples = samples.filter(s => selectedSampleIds.includes(s.id));
+    const allSamplesVisible = selectedSamples.length === selectedSampleIds.length;
 
-    allTags.forEach(tag => {
-      // Count how many selected samples have this tag
-      const samplesWithTag = selectedSamples.filter(sample =>
-        sample.tags?.some(t => t.id === tag.id)
-      ).length;
+    if (allSamplesVisible) {
+      // All selected samples are visible - calculate states client-side
+      const states: TagStates = {};
 
-      if (samplesWithTag === selectedSampleIds.length) {
-        states[tag.id] = 'checked'; // All samples have this tag
-      } else if (samplesWithTag > 0) {
-        states[tag.id] = 'indeterminate'; // Some samples have this tag
-      } else {
-        states[tag.id] = 'unchecked'; // No samples have this tag
-      }
-    });
+      allTags.forEach(tag => {
+        // Count how many selected samples have this tag
+        const samplesWithTag = selectedSamples.filter(sample =>
+          sample.tags?.some(t => t.id === tag.id)
+        ).length;
 
-    setTagStates(states);
-    setInitialStates(states);
-    setHasChanges(false);
+        if (samplesWithTag === selectedSampleIds.length) {
+          states[tag.id] = 'checked'; // All samples have this tag
+        } else if (samplesWithTag > 0) {
+          states[tag.id] = 'indeterminate'; // Some samples have this tag
+        } else {
+          states[tag.id] = 'unchecked'; // No samples have this tag
+        }
+      });
+
+      setTagStates(states);
+      setInitialStates(states);
+      setHasChanges(false);
+    } else {
+      // Some selected samples are not visible - query backend for accurate states
+      getBulkTagStates(selectedSampleIds).then(response => {
+        const states: TagStates = {};
+
+        response.data.tags.forEach(tag => {
+          if (tag.state === 'all') {
+            states[tag.id] = 'checked';
+          } else if (tag.state === 'some') {
+            states[tag.id] = 'indeterminate';
+          } else {
+            states[tag.id] = 'unchecked';
+          }
+        });
+
+        setTagStates(states);
+        setInitialStates(states);
+        setHasChanges(false);
+      }).catch(error => {
+        console.error('Failed to get bulk tag states:', error);
+      });
+    }
   }, [isOpen, selectedSampleIds, allTags, samples]);
 
   // Filter tags by search query

@@ -270,7 +270,7 @@ describe('FolderBrowserModal', () => {
       });
 
       const checkboxes = screen.getAllByRole('checkbox') as HTMLInputElement[];
-      await user.click(checkboxes[0]!!);
+      await user.click(checkboxes[0]!);
 
       expect(checkboxes[0]!).toBeChecked();
     });
@@ -284,10 +284,10 @@ describe('FolderBrowserModal', () => {
       });
 
       const checkboxes = screen.getAllByRole('checkbox') as HTMLInputElement[];
-      await user.click(checkboxes[0]!!);
+      await user.click(checkboxes[0]!);
       expect(checkboxes[0]!).toBeChecked();
 
-      await user.click(checkboxes[0]!!);
+      await user.click(checkboxes[0]!);
       expect(checkboxes[0]!).not.toBeChecked();
     });
 
@@ -300,8 +300,8 @@ describe('FolderBrowserModal', () => {
       });
 
       const checkboxes = screen.getAllByRole('checkbox') as HTMLInputElement[];
-      await user.click(checkboxes[0]!!);
-      await user.click(checkboxes[1]!!);
+      await user.click(checkboxes[0]!);
+      await user.click(checkboxes[1]!);
 
       expect(checkboxes[0]!).toBeChecked();
       expect(checkboxes[1]!).toBeChecked();
@@ -316,8 +316,8 @@ describe('FolderBrowserModal', () => {
       });
 
       const checkboxes = screen.getAllByRole('checkbox') as HTMLInputElement[];
-      await user.click(checkboxes[0]!!);
-      await user.click(checkboxes[1]!!);
+      await user.click(checkboxes[0]!);
+      await user.click(checkboxes[1]!);
 
       expect(screen.getByText('Confirm (2)')).toBeInTheDocument();
     });
@@ -333,7 +333,7 @@ describe('FolderBrowserModal', () => {
       const checkboxes = screen.getAllByRole('checkbox') as HTMLInputElement[];
       const initialCallCount = vi.mocked(api.browseFolders).mock.calls.length;
 
-      await user.click(checkboxes[0]!!);
+      await user.click(checkboxes[0]!);
 
       // Should not navigate to folder
       expect(api.browseFolders).toHaveBeenCalledTimes(initialCallCount);

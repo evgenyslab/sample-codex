@@ -115,3 +115,72 @@ export interface AppStats {
   collections: number;
   folders: number;
 }
+
+// Metadata types (with counts for filter panes)
+export interface TagMetadata extends Tag {
+  sample_count: number;
+  auto_generated?: boolean;
+  is_system?: boolean;
+}
+
+export interface CollectionMetadata extends Collection {
+  sample_count: number;
+  updated_at?: string;
+}
+
+export interface FolderMetadata {
+  path: string;
+  sample_count: number;
+}
+
+export interface FoldersMetadataResponse {
+  folders: FolderMetadata[];
+  common_root: string;
+}
+
+// Select-all response
+export interface SelectAllResponse {
+  sample_ids: number[];
+  total: number;
+  limit_reached: boolean;
+}
+
+// Bulk tag states response
+export interface TagState {
+  id: number;
+  name: string;
+  color: string | null;
+  state: 'all' | 'some' | 'none';
+  count: number;
+}
+
+export interface BulkTagStatesResponse {
+  tags: TagState[];
+}
+
+// List samples params
+export interface ListSamplesParams {
+  page?: number;
+  limit?: number;
+  folder_id?: number;
+  tags?: string;
+  exclude_tags?: string;
+  collections?: string;
+  exclude_collections?: string;
+  folders?: string;
+  exclude_folders?: string;
+  search?: string;
+  sort_by?: string;
+  sort_order?: string;
+}
+
+// Select-all filters request
+export interface SelectAllFilters {
+  tags?: string;
+  exclude_tags?: string;
+  collections?: string;
+  exclude_collections?: string;
+  folders?: string;
+  exclude_folders?: string;
+  search?: string;
+}

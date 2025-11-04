@@ -37,6 +37,28 @@ async def list_collections(request: Request):
         return {"collections": collections}
 
 
+@router.get("/metadata")
+async def get_collections_metadata(request: Request):
+    """List all collections with sample counts"""
+    with get_db_connection(request) as conn:
+        query = """
+            SELECT
+                c.id,
+                c.name,
+                c.description,
+                c.updated_at,
+                COUNT(DISTINCT ci.file_id) as sample_count
+            FROM collections c
+            LEFT JOIN collection_items ci ON c.id = ci.collection_id
+            LEFT JOIN files f ON ci.file_id = f.id AND f.indexed = 1
+            GROUP BY c.id, c.name, c.description, c.updated_at
+            ORDER BY c.updated_at DESC
+        """
+        cursor = conn.execute(query)
+        collections = [dict(row) for row in cursor.fetchall()]
+        return {"collections": collections}
+
+
 @router.post("")
 async def create_collection(request: Request, collection: Collection):
     """Create a new collection"""

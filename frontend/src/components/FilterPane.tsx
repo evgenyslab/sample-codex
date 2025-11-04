@@ -1,30 +1,22 @@
 import { ChevronUpIcon, SearchIcon, TagIcon, XIcon } from './ui/Icons';
 import { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { getTagsMetadata, getCollectionsMetadata } from '../services/api';
+import type { TagMetadata, CollectionMetadata } from '../types';
 
-/*
-This function will need some work, and most likely so will all the filtering states.
-
-Top level browser page gets all items, then list of tags, folder and collections.
-The unique set of tags across all items is displayed in the tag filter pane.
-The unique set of common folders across all items is displayed in the folder filter pane.
-The unique set of collections across all items is displayed in the collection filter pane.
-
-Now, if we want to exclude tags, we click exclude, which adds it to the excluded list, but it 
-also causes the files to be filtered to only show files that do not have that tag, that in turn
-removes the tag from filter pane, but we want to keep it in the filter pane, so we can re-include it.
-
-
-*/
+// Constant empty array to avoid re-creating on every render
+const EMPTY_NUMBER_ARRAY: number[] = [];
 
 interface FilterItem {
   id: number;
   name: string;
+  sample_count?: number;
   [key: string]: any;
 }
 
 interface FilterPaneProps<T extends FilterItem = FilterItem> {
-  items?: T[];
-  type?: string;
+  items?: T[]; // Optional legacy support
+  type: 'tags' | 'collections' | string; // Type determines which metadata to fetch
   includedItems?: number[];
   excludedItems?: number[];
   highlightedItems?: number[];
@@ -41,13 +33,14 @@ interface FilterPaneProps<T extends FilterItem = FilterItem> {
 
 /**
  * FilterPane - A reusable component for displaying and filtering items (tags, folders, collections)
+ * Now fetches metadata internally based on type prop
  */
 export default function FilterPane<T extends FilterItem = FilterItem>({
-  items = [],
+  items: itemsProp,
   type = 'items',
-  includedItems = [],
-  excludedItems = [],
-  highlightedItems = [],
+  includedItems,
+  excludedItems,
+  highlightedItems,
   onItemClick,
   onRemoveIncluded,
   onRemoveExcluded,
@@ -58,7 +51,41 @@ export default function FilterPane<T extends FilterItem = FilterItem>({
   showExclude = true,
   collapsedIcon: CollapsedIcon = TagIcon,
 }: FilterPaneProps<T>) {
+  // Use constant empty arrays if props not provided to avoid re-renders
+  const effectiveIncludedItems = includedItems || EMPTY_NUMBER_ARRAY;
+  const effectiveExcludedItems = excludedItems || EMPTY_NUMBER_ARRAY;
+  const effectiveHighlightedItems = highlightedItems || EMPTY_NUMBER_ARRAY;
+
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Fetch metadata based on type
+  const { data: tagsMetadata, isLoading: tagsLoading } = useQuery({
+    queryKey: ['tags-metadata'],
+    queryFn: async () => {
+      const response = await getTagsMetadata();
+      return response.data.tags as TagMetadata[];
+    },
+    enabled: type === 'tags' && !itemsProp, // Only fetch if not using legacy items prop
+  });
+
+  const { data: collectionsMetadata, isLoading: collectionsLoading } = useQuery({
+    queryKey: ['collections-metadata'],
+    queryFn: async () => {
+      const response = await getCollectionsMetadata();
+      return response.data.collections as CollectionMetadata[];
+    },
+    enabled: type === 'collections' && !itemsProp,
+  });
+
+  // Use fetched metadata or fall back to items prop for legacy support
+  const items = useMemo(() => {
+    if (itemsProp) return itemsProp;
+    if (type === 'tags') return (tagsMetadata || []) as unknown as T[];
+    if (type === 'collections') return (collectionsMetadata || []) as unknown as T[];
+    return [];
+  }, [itemsProp, type, tagsMetadata, collectionsMetadata]);
+
+  const isLoading = (type === 'tags' && tagsLoading) || (type === 'collections' && collectionsLoading);
 
   // Filter items based on search, and sort highlighted items to top
   const filteredItems = useMemo(() => {
@@ -76,20 +103,20 @@ export default function FilterPane<T extends FilterItem = FilterItem>({
     }
 
     // Sort highlighted items to top
-    if (highlightedItems && highlightedItems.length > 0) {
+    if (effectiveHighlightedItems.length > 0) {
       filtered = [...filtered].sort((a, b) => {
-        const aHighlighted = highlightedItems.includes(getItemId(a));
-        const bHighlighted = highlightedItems.includes(getItemId(b));
+        const aHighlighted = effectiveHighlightedItems.includes(getItemId(a));
+        const bHighlighted = effectiveHighlightedItems.includes(getItemId(b));
 
         if (aHighlighted && !bHighlighted) return -1;
         if (!aHighlighted && bHighlighted) return 1;
         return 0;
       });
     }
-    
+
 
     return filtered;
-  }, [items, searchQuery, highlightedItems, getItemLabel, getItemId]);
+  }, [items, searchQuery, effectiveHighlightedItems, getItemLabel, getItemId]);
 
   const handleItemClick = (itemId: number, isRightClick: boolean) => {
     if (onItemClick) {
@@ -131,7 +158,11 @@ export default function FilterPane<T extends FilterItem = FilterItem>({
 
         {/* Item List */}
         <div className="flex-1 overflow-y-auto overflow-x-auto p-2">
-          {filteredItems.length === 0 ? (
+          {isLoading ? (
+            <div className="text-center py-8 text-sm text-muted-foreground">
+              Loading {type}...
+            </div>
+          ) : filteredItems.length === 0 ? (
             <div className="text-center py-8 text-sm text-muted-foreground">
               No {type} found
             </div>
@@ -140,9 +171,10 @@ export default function FilterPane<T extends FilterItem = FilterItem>({
               {filteredItems.map((item) => {
                 const itemId = getItemId(item);
                 const itemLabel = getItemLabel(item);
-                const isIncluded = includedItems.includes(itemId);
-                const isExcluded = excludedItems.includes(itemId);
-                const isHighlighted = highlightedItems.includes(itemId);
+                const sampleCount = item.sample_count;
+                const isIncluded = effectiveIncludedItems.includes(itemId);
+                const isExcluded = effectiveExcludedItems.includes(itemId);
+                const isHighlighted = effectiveHighlightedItems.includes(itemId);
 
                 return (
                   <div
@@ -164,21 +196,28 @@ export default function FilterPane<T extends FilterItem = FilterItem>({
                     title={showExclude ? 'Left-click to include, right-click to exclude' : 'Click to select'}
                   >
                     <span className="flex-1 truncate">{itemLabel}</span>
-                    {(isIncluded || isExcluded) && (
-                      <button
-                        onClick={(e) => {
-                          if (isIncluded) {
-                            handleRemoveIncluded(e, itemId);
-                          } else {
-                            handleRemoveExcluded(e, itemId);
-                          }
-                        }}
-                        className="ml-2 hover:opacity-70 transition-opacity"
-                        title="Remove filter"
-                      >
-                        <XIcon className="w-3 h-3" />
-                      </button>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {sampleCount !== undefined && (
+                        <span className="text-xs text-muted-foreground font-mono">
+                          {sampleCount}
+                        </span>
+                      )}
+                      {(isIncluded || isExcluded) && (
+                        <button
+                          onClick={(e) => {
+                            if (isIncluded) {
+                              handleRemoveIncluded(e, itemId);
+                            } else {
+                              handleRemoveExcluded(e, itemId);
+                            }
+                          }}
+                          className="ml-1 hover:opacity-70 transition-opacity"
+                          title="Remove filter"
+                        >
+                          <XIcon className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -187,19 +226,19 @@ export default function FilterPane<T extends FilterItem = FilterItem>({
         </div>
 
         {/* Active Filters Summary */}
-        {(includedItems.length > 0 || excludedItems.length > 0) && (
+        {(effectiveIncludedItems.length > 0 || effectiveExcludedItems.length > 0) && (
           <div className="px-3 py-2 border-t border-border bg-muted/50">
             <div className="text-xs text-muted-foreground space-y-1">
-              {includedItems.length > 0 && (
+              {effectiveIncludedItems.length > 0 && (
                 <div className="flex items-center gap-1">
                   <span className="font-medium">Include:</span>
-                  <span>{includedItems.length}</span>
+                  <span>{effectiveIncludedItems.length}</span>
                 </div>
               )}
-              {excludedItems.length > 0 && (
+              {effectiveExcludedItems.length > 0 && (
                 <div className="flex items-center gap-1">
                   <span className="font-medium">Exclude:</span>
-                  <span>{excludedItems.length}</span>
+                  <span>{effectiveExcludedItems.length}</span>
                 </div>
               )}
             </div>

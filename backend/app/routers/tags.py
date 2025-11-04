@@ -36,6 +36,29 @@ async def list_tags(request: Request):
         return {"tags": tags}
 
 
+@router.get("/metadata")
+async def get_tags_metadata(request: Request):
+    """List all tags with sample counts"""
+    with get_db_connection(request) as conn:
+        query = """
+            SELECT
+                t.id,
+                t.name,
+                t.color,
+                t.auto_generated,
+                t.is_system,
+                COUNT(DISTINCT ft.file_id) as sample_count
+            FROM tags t
+            LEFT JOIN file_tags ft ON t.id = ft.tag_id
+            LEFT JOIN files f ON ft.file_id = f.id AND f.indexed = 1
+            GROUP BY t.id, t.name, t.color, t.auto_generated, t.is_system
+            ORDER BY t.name
+        """
+        cursor = conn.execute(query)
+        tags = [dict(row) for row in cursor.fetchall()]
+        return {"tags": tags}
+
+
 @router.post("")
 async def create_tag(request: Request, tag: Tag):
     """Create a new tag"""

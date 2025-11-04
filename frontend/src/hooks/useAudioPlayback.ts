@@ -88,7 +88,7 @@ export default function useAudioPlayback(audioBlob: Blob | null): AudioPlaybackS
       if (sourceNodeRef.current) {
         try {
           sourceNodeRef.current.stop();
-        } catch (e) {
+        } catch (_e) {
           // Ignore
         }
         sourceNodeRef.current = null;
@@ -155,7 +155,7 @@ export default function useAudioPlayback(audioBlob: Blob | null): AudioPlaybackS
     if (sourceNodeRef.current) {
       try {
         sourceNodeRef.current.stop();
-      } catch (e) {
+      } catch (_e) {
         // Ignore if already stopped
       }
       sourceNodeRef.current.disconnect();
@@ -237,12 +237,12 @@ export default function useAudioPlayback(audioBlob: Blob | null): AudioPlaybackS
 
     try {
       sourceNodeRef.current.stop();
-    } catch (e) {
+    } catch (_e) {
       // Ignore if already stopped
     }
     try {
       sourceNodeRef.current.disconnect();
-    } catch (e) {
+    } catch (_e) {
       // Ignore if already disconnected
     }
     sourceNodeRef.current = null;
@@ -258,13 +258,13 @@ export default function useAudioPlayback(audioBlob: Blob | null): AudioPlaybackS
     if (sourceNodeRef.current) {
       try {
         sourceNodeRef.current.stop();
-      } catch (e) {
+      } catch (_e) {
         // Ignore if already stopped
       }
       // Disconnect to immediately cut off audio
       try {
         sourceNodeRef.current.disconnect();
-      } catch (e) {
+      } catch (_e) {
         // Ignore if already disconnected
       }
       sourceNodeRef.current = null;
@@ -277,9 +277,9 @@ export default function useAudioPlayback(audioBlob: Blob | null): AudioPlaybackS
   }, []);
 
   /**
-   * Toggle play/pause
+   * Toggle play/pause (currently unused but available for future use)
    */
-  const togglePlayPause = useCallback(() => {
+  const _togglePlayPause = useCallback(() => {
     if (isPlaying) {
       pause();
     } else {
@@ -304,9 +304,9 @@ export default function useAudioPlayback(audioBlob: Blob | null): AudioPlaybackS
   }, []);
 
   /**
-   * Seek to position (0-1)
+   * Seek to position (0-1) (currently unused but available for future use)
    */
-  const seek = useCallback(
+  const _seek = useCallback(
     (position: number) => {
       if (!duration) return;
 

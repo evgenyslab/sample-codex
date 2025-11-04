@@ -1,4 +1,16 @@
-import type { Collection, Folder, Sample, Tag } from '../types';
+import type {
+  Collection,
+  CollectionMetadata,
+  Folder,
+  FoldersMetadataResponse,
+  ListSamplesParams,
+  Sample,
+  SelectAllFilters,
+  SelectAllResponse,
+  BulkTagStatesResponse,
+  Tag,
+  TagMetadata,
+} from '../types';
 import axios, { AxiosResponse } from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
@@ -15,18 +27,6 @@ interface BrowseFoldersResponse {
   folders: Array<{ name: string; path: string }>;
   files: string[];
   current_path: string;
-}
-
-interface ListSamplesParams {
-  tag_ids?: number[];
-  collection_ids?: number[];
-  folder_ids?: number[];
-  search?: string;
-  page?: number;
-  page_size?: number;
-  limit?: number;
-  tags?: string;
-  exclude_tags?: string;
 }
 
 interface ScanFoldersRequest {
@@ -92,6 +92,9 @@ export const browseFolders = (path?: string): Promise<AxiosResponse<BrowseFolder
 export const getScannedFolders = (): Promise<AxiosResponse<Folder[]>> =>
   api.get('/folders/scanned');
 
+export const getFoldersMetadata = (): Promise<AxiosResponse<FoldersMetadataResponse>> =>
+  api.get('/folders/metadata');
+
 export const scanFolders = (paths: string[]): Promise<AxiosResponse<{ message: string }>> =>
   api.post('/folders/scan', { paths } as ScanFoldersRequest);
 
@@ -114,9 +117,18 @@ export const updateSample = (id: number, data: UpdateSampleRequest): Promise<Axi
 export const deleteSample = (id: number): Promise<AxiosResponse<{ message: string }>> =>
   api.delete(`/samples/${id}`);
 
+export const selectAllSamples = (filters: SelectAllFilters): Promise<AxiosResponse<SelectAllResponse>> =>
+  api.post('/samples/select-all', filters);
+
+export const getBulkTagStates = (sampleIds: number[]): Promise<AxiosResponse<BulkTagStatesResponse>> =>
+  api.post('/samples/bulk-tag-states', { sample_ids: sampleIds });
+
 // Tags
-export const listTags = (): Promise<AxiosResponse<Tag[]>> =>
+export const listTags = (): Promise<AxiosResponse<{ tags: Tag[] }>> =>
   api.get('/tags');
+
+export const getTagsMetadata = (): Promise<AxiosResponse<{ tags: TagMetadata[] }>> =>
+  api.get('/tags/metadata');
 
 export const createTag = (data: CreateTagRequest): Promise<AxiosResponse<Tag>> =>
   api.post('/tags', data);
@@ -151,8 +163,11 @@ export const bulkUpdateSampleTags = (
   } as BulkUpdateTagsRequest);
 
 // Collections
-export const listCollections = (): Promise<AxiosResponse<Collection[]>> =>
+export const listCollections = (): Promise<AxiosResponse<{ collections: Collection[] }>> =>
   api.get('/collections');
+
+export const getCollectionsMetadata = (): Promise<AxiosResponse<{ collections: CollectionMetadata[] }>> =>
+  api.get('/collections/metadata');
 
 export const createCollection = (data: CreateCollectionRequest): Promise<AxiosResponse<Collection>> =>
   api.post('/collections', data);

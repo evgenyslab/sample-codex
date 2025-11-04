@@ -1,6 +1,6 @@
-import type { AppStats, Collection, Folder, HealthStatus, Sample, Tag } from '../types'
+import type { AppStats, HealthStatus, Sample, ListSamplesParams, Tag, Collection, Folder } from '../types'
 import { CollectionIcon, SearchIcon, TagIcon } from '../components/ui/Icons'
-import { bulkUpdateSampleCollections, bulkUpdateSampleTags, getScannedFolders, healthCheck, listCollections, listSamples, listTags } from '../services/api'
+import { bulkUpdateSampleCollections, bulkUpdateSampleTags, getScannedFolders, healthCheck, listCollections, listSamples, listTags, selectAllSamples } from '../services/api'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import CollectionPopup from '../components/CollectionPopup/CollectionPopup.tsx'
@@ -54,6 +54,7 @@ export default function Browser() {
   const [isTagPopupOpen, setIsTagPopupOpen] = useState(false)
   const [isCollectionPopupOpen, setIsCollectionPopupOpen] = useState(false)
   const [selectedSamples, setSelectedSamples] = useState<Set<number>>(new Set())
+  const [selectionInfo, setSelectionInfo] = useState<{ total: number; visibleCount: number; isPartial: boolean } | null>(null)
 
   // Player is open when a sample is selected
   const isPlayerOpen = selectedSample !== null
@@ -72,16 +73,25 @@ export default function Browser() {
     return saved !== null ? saved === 'true' : false
   })
 
-  const [sampleSearch, setSampleSearch] = useState('')
+  // Pagination state
+  const [page, setPage] = useState(1)
+  const [accumulatedSamples, setAccumulatedSamples] = useState<Sample[]>([])
+  const [totalCount, setTotalCount] = useState(0)
+
+  // Filter state
+  const [searchInput, setSearchInput] = useState('') // Immediate input value
+  const [sampleSearch, setSampleSearch] = useState('') // Debounced search value
   const [includedTags, setIncludedTags] = useState<number[]>([])
   const [excludedTags, setExcludedTags] = useState<number[]>([])
   const [includedFolders, setIncludedFolders] = useState<string[]>([])
   const [excludedFolders, setExcludedFolders] = useState<string[]>([])
+  const [expandToFolderPath, setExpandToFolderPath] = useState<string | undefined>(undefined)
   const [includedCollections, setIncludedCollections] = useState<number[]>([])
   const [excludedCollections, setExcludedCollections] = useState<number[]>([])
   const [sortColumn, setSortColumn] = useState<SortColumn | null>(null)
   const [sortDirection, setSortDirection] = useState<SortDirection | null>(null)
   const lastClickedIndexRef = useRef<number | null>(null)
+  const isLoadingMoreRef = useRef(false)
 
   const tableRef = useRef<HTMLDivElement | null>(null)
 
@@ -98,6 +108,19 @@ export default function Browser() {
     localStorage.setItem('browser-collections-pane-visible', isCollectionPaneVisible.toString())
   }, [isCollectionPaneVisible])
 
+  // Debounce search input (300ms delay)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchInput !== sampleSearch) {
+        setSampleSearch(searchInput)
+        setPage(1) // Reset to page 1 on search change
+        setAccumulatedSamples([]) // Clear accumulated samples
+        isLoadingMoreRef.current = false
+      }
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchInput, sampleSearch])
+
   const { data: health } = useQuery({
     queryKey: ['health'],
     queryFn: async () => {
@@ -106,25 +129,42 @@ export default function Browser() {
     }
   })
 
-  // Query for all samples (used for folder tree - no tag filters)
-  const { data: allSamplesData } = useQuery({
-    queryKey: ['samples-all'],
+  // Main samples query with all filters and pagination
+  const { data: samplesData, refetch: refetchSamples, isFetching } = useQuery({
+    queryKey: [
+      'samples',
+      page,
+      includedTags,
+      excludedTags,
+      includedCollections,
+      excludedCollections,
+      includedFolders,
+      excludedFolders,
+      sampleSearch,
+      sortColumn,
+      sortDirection
+    ],
     queryFn: async () => {
-      const response = await listSamples({ page: 1, limit: 1000 })
-      return response.data as unknown as SamplesResponse
-    }
-  })
+      const params: ListSamplesParams = {
+        page,
+        limit: 100,
+      }
 
-  const { data: samplesData, refetch: refetchSamples } = useQuery({
-    queryKey: ['samples', includedTags, excludedTags],
-    queryFn: async () => {
-      const params: any = { page: 1, limit: 100000 }
-      if (includedTags.length > 0) {
-        params.tags = includedTags.join(',')
+      // Add filters
+      if (includedTags.length > 0) params.tags = includedTags.join(',')
+      if (excludedTags.length > 0) params.exclude_tags = excludedTags.join(',')
+      if (includedCollections.length > 0) params.collections = includedCollections.join(',')
+      if (excludedCollections.length > 0) params.exclude_collections = excludedCollections.join(',')
+      if (includedFolders.length > 0) params.folders = includedFolders.join(',')
+      if (excludedFolders.length > 0) params.exclude_folders = excludedFolders.join(',')
+      if (sampleSearch) params.search = sampleSearch
+
+      // Add sorting
+      if (sortColumn) {
+        params.sort_by = sortColumn === 'name' ? 'filename' : sortColumn
+        params.sort_order = sortDirection || 'asc'
       }
-      if (excludedTags.length > 0) {
-        params.exclude_tags = excludedTags.join(',')
-      }
+
       const response = await listSamples(params)
       return response.data as unknown as SamplesResponse
     }
@@ -154,146 +194,36 @@ export default function Browser() {
     }
   })
 
+  // Accumulate samples as pages load
+  useEffect(() => {
+    if (samplesData?.samples) {
+      setTotalCount(samplesData.pagination?.total || 0)
+
+      if (page === 1) {
+        // First page: replace accumulated samples
+        setAccumulatedSamples(samplesData.samples)
+      } else {
+        // Subsequent pages: append to accumulated samples
+        setAccumulatedSamples(prev => [...prev, ...samplesData.samples])
+      }
+    }
+  }, [samplesData, page])
+
+  // Determine if there are more pages to load
+  const hasNextPage = accumulatedSamples.length < totalCount
+
   const stats: AppStats = {
-    samples: samplesData?.pagination?.total || 0,
+    samples: totalCount,
     tags: tagsData?.tags?.length || 0,
     folders: foldersData?.folders?.length || 0,
     collections: collectionsData?.collections?.length || 0,
   }
 
-  // Helper function to check if a path is in a folder (with proper delimiter checking)
-  const isPathInFolder = (filePath: string, folderPath: string): boolean => {
-    if (!filePath || !folderPath) return false
-    // Ensure folder path ends with / for proper matching
-    const normalizedFolder = folderPath.endsWith('/') ? folderPath : folderPath + '/'
-    return filePath.startsWith(normalizedFolder) || filePath === folderPath
-  }
+  // Use accumulated samples directly (filtering now happens on backend)
+  const samples = accumulatedSamples
 
-  // Get samples list and filter by search and folders
-  const samples = useMemo(() => {
-    let filtered = samplesData?.samples || []
-
-    // Apply collection filters
-    if (includedCollections.length > 0 || excludedCollections.length > 0) {
-      filtered = filtered.filter(sample => {
-        const sampleCollectionIds = (sample.collections || []).map(c => c.id)
-
-        // Check exclusions first
-        if (excludedCollections.length > 0) {
-          const isExcluded = excludedCollections.some(collectionId =>
-            sampleCollectionIds.includes(collectionId)
-          )
-          if (isExcluded) return false
-        }
-
-        // Check inclusions
-        if (includedCollections.length > 0) {
-          const isIncluded = includedCollections.some(collectionId =>
-            sampleCollectionIds.includes(collectionId)
-          )
-          return isIncluded
-        }
-
-        return true
-      })
-    }
-
-    // Apply folder filters
-    if (includedFolders.length > 0 || excludedFolders.length > 0) {
-      filtered = filtered.filter(sample => {
-        const samplePath = sample.filepath || ''
-
-        // Check exclusions first
-        if (excludedFolders.length > 0) {
-          const isExcluded = excludedFolders.some(folder => isPathInFolder(samplePath, folder))
-          if (isExcluded) return false
-        }
-
-        // Check inclusions
-        if (includedFolders.length > 0) {
-          const isIncluded = includedFolders.some(folder => isPathInFolder(samplePath, folder))
-          return isIncluded
-        }
-
-        return true
-      })
-    }
-
-    // Apply search filter
-    if (sampleSearch) {
-      const searchLower = sampleSearch.toLowerCase()
-      filtered = filtered.filter(sample =>
-        sample.filename?.toLowerCase().includes(searchLower) ||
-        sample.filepath?.toLowerCase().includes(searchLower)
-      )
-    }
-
-    // Apply sorting
-    if (sortColumn && sortDirection) {
-      filtered = [...filtered].sort((a, b) => {
-        let aVal: string | number
-        let bVal: string | number
-
-        switch (sortColumn) {
-          case 'name':
-            aVal = (a.filename || '').toLowerCase()
-            bVal = (b.filename || '').toLowerCase()
-            break
-          case 'duration':
-            aVal = (a as any).duration || 0
-            bVal = (b as any).duration || 0
-            break
-          case 'channels':
-            aVal = (a as any).channels || 0
-            bVal = (b as any).channels || 0
-            break
-          default:
-            return 0
-        }
-
-        if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1
-        if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1
-        return 0
-      })
-    }
-
-    return filtered
-  }, [samplesData, sampleSearch, includedCollections, excludedCollections, includedFolders, excludedFolders, sortColumn, sortDirection])
-
-  // Calculate which tags are actually used in samples (for filtering tag pane)
-  const usedTags = useMemo(() => {
-    const allSamples = samplesData?.samples || []
-    const tagIds = new Set<number>()
-
-    allSamples.forEach(sample => {
-      sample.tags?.forEach(tag => {
-        tagIds.add(tag.id)
-      })
-    })
-
-    // Filter tags to only those that are used
-    return (tagsData?.tags || []).filter(tag => tagIds.has(tag.id))
-  }, [samplesData, tagsData])
-
-  // Calculate which tags are actually used in samples (for filtering tag pane)
-  const allTags = useMemo(() => {
-    const allSamples = allSamplesData?.samples || []
-    const tagIds = new Set<number>()
-
-    allSamples.forEach(sample => {
-      sample.tags?.forEach(tag => {
-        tagIds.add(tag.id)
-      })
-    })
-
-    // Filter tags to only those that are used
-    return (tagsData?.tags || []).filter(tag => tagIds.has(tag.id))
-  }, [samplesData, tagsData])
-
-  // Get all collections for filtering (show all collections, not just used ones)
-  const allCollectionsForFilter = useMemo(() => {
-    return collectionsData?.collections || []
-  }, [collectionsData])
+  // Memoize array conversions to prevent unnecessary re-renders
+  const selectedSampleIdsArray = useMemo(() => Array.from(selectedSamples), [selectedSamples])
 
   // Clear selected sample if it's no longer in visible samples due to folder filtering
   useEffect(() => {
@@ -302,7 +232,7 @@ export default function Browser() {
     }
   }, [samples, selectedSample, setSelectedSample])
 
-  // Virtualizer for sample table
+  // Virtualizer for sample table with infinite scroll
   const rowVirtualizer = useVirtualizer({
     count: samples.length,
     getScrollElement: () => tableRef.current,
@@ -310,7 +240,53 @@ export default function Browser() {
     overscan: 10,
   })
 
+  // Infinite scroll: Load next page when near bottom
+  useEffect(() => {
+    const scrollElement = tableRef.current
+    if (!scrollElement) return
+
+    const handleScroll = () => {
+      // Prevent duplicate loads
+      if (isLoadingMoreRef.current) return
+
+      const virtualItems = rowVirtualizer.getVirtualItems()
+      if (!virtualItems || virtualItems.length === 0) return
+
+      const lastItem = virtualItems[virtualItems.length - 1]
+      if (!lastItem) return
+
+      // If we're within 20 items of the end and not currently fetching, load next page
+      if (
+        lastItem.index >= samples.length - 20 &&
+        hasNextPage &&
+        !isFetching
+      ) {
+        isLoadingMoreRef.current = true
+        setPage(prev => prev + 1)
+      }
+    }
+
+    // Check immediately
+    handleScroll()
+
+    // Listen to scroll events
+    scrollElement.addEventListener('scroll', handleScroll)
+    return () => scrollElement.removeEventListener('scroll', handleScroll)
+  }, [samples.length, hasNextPage, isFetching, rowVirtualizer])
+
+  // Reset loading flag when fetch completes
+  useEffect(() => {
+    if (!isFetching) {
+      isLoadingMoreRef.current = false
+    }
+  }, [isFetching])
+
   const handleTagClick = (tagId: number, isRightClick = false) => {
+    // Reset pagination when filters change
+    setPage(1)
+    setAccumulatedSamples([])
+    isLoadingMoreRef.current = false
+
     if (isRightClick) {
       // Right-click: toggle exclude
       if (excludedTags.includes(tagId)) {
@@ -331,6 +307,11 @@ export default function Browser() {
   }
 
   const handleFolderClick = (folderPath: string, isCtrlClick = false) => {
+    // Reset pagination when filters change
+    setPage(1)
+    setAccumulatedSamples([])
+    isLoadingMoreRef.current = false
+
     if (isCtrlClick) {
       // Ctrl/Cmd-click: toggle exclude
       if (excludedFolders.includes(folderPath)) {
@@ -351,6 +332,11 @@ export default function Browser() {
   }
 
   const handleCollectionClick = (collectionId: number, isRightClick = false) => {
+    // Reset pagination when filters change
+    setPage(1)
+    setAccumulatedSamples([])
+    isLoadingMoreRef.current = false
+
     if (isRightClick) {
       // Right-click: toggle exclude
       if (excludedCollections.includes(collectionId)) {
@@ -370,11 +356,6 @@ export default function Browser() {
     }
   }
 
-  // Extract sample paths for folder tree (from ALL samples, not filtered by tags)
-  const samplePathsForFolderTree = useMemo(() => {
-    return (allSamplesData?.samples || []).map(s => s.filepath).filter(Boolean)
-  }, [allSamplesData])
-
   const formatDuration = (seconds: number): string => {
     if (!seconds) return '-'
     const mins = Math.floor(seconds / 60)
@@ -386,6 +367,11 @@ export default function Browser() {
 
   // Handle column sort toggle: none -> asc -> desc -> none
   const handleSort = (column: SortColumn) => {
+    // Reset pagination when sort changes
+    setPage(1)
+    setAccumulatedSamples([])
+    isLoadingMoreRef.current = false
+
     if (sortColumn !== column) {
       // New column, start with ascending
       setSortColumn(column)
@@ -414,6 +400,7 @@ export default function Browser() {
       // Close popup and clear selection
       setIsTagPopupOpen(false)
       setSelectedSamples(new Set())
+      setSelectionInfo(null)
     } catch (error) {
       console.error('Failed to update tags:', error)
       // TODO: Show error message to user
@@ -435,6 +422,7 @@ export default function Browser() {
       // Close popup and clear selection
       setIsCollectionPopupOpen(false)
       setSelectedSamples(new Set())
+      setSelectionInfo(null)
     } catch (error) {
       console.error('Failed to update collections:', error)
       // TODO: Show error message to user
@@ -452,6 +440,7 @@ export default function Browser() {
       if (e.key === 'Escape') {
         // Clear multi-select and single select, close player
         setSelectedSamples(new Set())
+        setSelectionInfo(null)
         setSelectedSample(null)
       } else if (e.key === 'x') {
         // Clear all filters (tags, collections, folders)
@@ -462,12 +451,38 @@ export default function Browser() {
         setExcludedCollections([])
         setIncludedFolders([])
       } else if (e.key === 'a' && (e.metaKey || e.ctrlKey)) {
-        // Select all samples (Cmd+A / Ctrl+A)
+        // Select all samples (Cmd+A / Ctrl+A) - Query backend for all matching IDs
         e.preventDefault()
-        const allSampleIds = new Set(samples.map(s => s.id))
-        setSelectedSamples(allSampleIds)
-        // Close player when selecting multiple
-        setSelectedSample(null)
+
+        // Build filter params matching current state
+        const filters: any = {}
+        if (includedTags.length > 0) filters.tags = includedTags.join(',')
+        if (excludedTags.length > 0) filters.exclude_tags = excludedTags.join(',')
+        if (includedCollections.length > 0) filters.collections = includedCollections.join(',')
+        if (excludedCollections.length > 0) filters.exclude_collections = excludedCollections.join(',')
+        if (includedFolders.length > 0) filters.folders = includedFolders.join(',')
+        if (excludedFolders.length > 0) filters.exclude_folders = excludedFolders.join(',')
+        if (sampleSearch) filters.search = sampleSearch
+
+        // Call backend to get all matching sample IDs
+        selectAllSamples(filters).then(response => {
+          const { sample_ids, total, limit_reached } = response.data
+          setSelectedSamples(new Set(sample_ids))
+          setSelectionInfo({
+            total,
+            visibleCount: samples.filter(s => sample_ids.includes(s.id)).length,
+            isPartial: sample_ids.length < total
+          })
+
+          if (limit_reached) {
+            console.warn(`Selection limited to ${sample_ids.length} samples (max 10,000)`)
+          }
+
+          // Close player when selecting multiple
+          setSelectedSample(null)
+        }).catch(error => {
+          console.error('Failed to select all samples:', error)
+        })
       } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         // Navigate up/down through samples
         e.preventDefault()
@@ -505,6 +520,10 @@ export default function Browser() {
             // Set as included folder to filter by it
             setIncludedFolders([folderPath])
             setExcludedFolders([])
+            // Expand to this path in the tree
+            setExpandToFolderPath(folderPath)
+            // Reset after a moment so future operations aren't affected
+            setTimeout(() => setExpandToFolderPath(undefined), 100)
             // Make sure folder pane is visible
             if (!isFolderPaneVisible) {
               setIsFolderPaneVisible(true)
@@ -555,7 +574,8 @@ export default function Browser() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedSamples, samples, selectedSample, isPlayerOpen, isFolderPaneVisible, rowVirtualizer])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSamples, samples, selectedSample, isPlayerOpen, isFolderPaneVisible, includedTags, excludedTags, includedCollections, excludedCollections, includedFolders, excludedFolders, sampleSearch])
 
   return (
     <div className="flex h-full bg-background overflow-x-hidden">
@@ -569,9 +589,6 @@ export default function Browser() {
       <div className="flex-1 flex gap-2 p-4 overflow-hidden relative">
         {/* Left Pane - Tags Filter */}
         <FilterPane
-          // we pass all tags to the filter pane, not just the visible tags, otherwise the 
-          // excluded tags will not be shown in the filter pane
-          items={allTags}
           type="tags"
           includedItems={includedTags}
           excludedItems={excludedTags}
@@ -587,7 +604,6 @@ export default function Browser() {
 
         {/* Collections Filter Pane */}
         <FilterPane
-          items={allCollectionsForFilter}
           type="collections"
           includedItems={includedCollections}
           excludedItems={excludedCollections}
@@ -603,7 +619,6 @@ export default function Browser() {
 
         {/* Middle Pane - Folder Tree Filter */}
         <FolderTreePane
-          samplePaths={samplePathsForFolderTree}
           includedFolders={includedFolders}
           excludedFolders={excludedFolders}
           onFolderClick={handleFolderClick}
@@ -611,6 +626,7 @@ export default function Browser() {
           onRemoveExcluded={(path) => setExcludedFolders(excludedFolders.filter(p => p !== path))}
           isVisible={isFolderPaneVisible}
           onToggleVisibility={setIsFolderPaneVisible}
+          expandToPath={expandToFolderPath}
         />
 
         {/* Right Pane - Sample Browser */}
@@ -622,18 +638,27 @@ export default function Browser() {
               <input
                 type="text"
                 placeholder="Search samples..."
-                value={sampleSearch}
-                onChange={(e) => setSampleSearch(e.target.value)}
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
                 className="w-full pl-9 pr-3 py-2 bg-muted border border-input rounded-md text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
               />
             </div>
             {selectedSamples.size > 0 && (
               <div className="flex items-center gap-2">
                 <div className="px-3 py-2 bg-blue-500/20 text-blue-600 dark:text-blue-400 rounded-md text-sm font-medium whitespace-nowrap">
-                  {selectedSamples.size} selected
+                  {selectionInfo?.isPartial ? (
+                    <span title={`${selectedSamples.size} samples selected, ${selectionInfo.visibleCount} visible on current page`}>
+                      {selectedSamples.size} selected ({selectionInfo.visibleCount} visible)
+                    </span>
+                  ) : (
+                    <span>{selectedSamples.size} selected</span>
+                  )}
                 </div>
                 <button
-                  onClick={() => setSelectedSamples(new Set())}
+                  onClick={() => {
+                    setSelectedSamples(new Set())
+                    setSelectionInfo(null)
+                  }}
                   className="px-2 py-2 hover:bg-muted rounded-md text-sm text-muted-foreground hover:text-foreground transition-colors"
                   title="Clear selection (Esc)"
                 >
@@ -643,11 +668,12 @@ export default function Browser() {
             )}
             {/* Sample count - right side */}
             <div className="px-3 py-2 text-sm text-muted-foreground font-medium whitespace-nowrap font-mono">
-              {samples.length !== samplesData?.pagination?.total ? (
-                <>{samples.length}/{samplesData?.pagination?.total || 0}</>
+              {accumulatedSamples.length < totalCount ? (
+                <>{accumulatedSamples.length} of {totalCount}</>
               ) : (
-                <>{samplesData?.pagination?.total || 0}</>
+                <>{totalCount}</>
               )}
+              {isFetching && <span className="ml-1 text-primary animate-pulse">...</span>}
             </div>
           </div>
 
@@ -826,7 +852,7 @@ export default function Browser() {
       <TagPopup
         isOpen={isTagPopupOpen}
         onClose={() => setIsTagPopupOpen(false)}
-        selectedSampleIds={Array.from(selectedSamples)}
+        selectedSampleIds={selectedSampleIdsArray}
         allTags={tagsData?.tags || []}
         samples={samplesData?.samples || []}
         onSave={handleTagSave}
@@ -836,7 +862,7 @@ export default function Browser() {
       <CollectionPopup
         isOpen={isCollectionPopupOpen}
         onClose={() => setIsCollectionPopupOpen(false)}
-        selectedSampleIds={Array.from(selectedSamples)}
+        selectedSampleIds={selectedSampleIdsArray}
         allCollections={collectionsData?.collections || []}
         samples={samplesData?.samples || []}
         onSave={handleCollectionSave}

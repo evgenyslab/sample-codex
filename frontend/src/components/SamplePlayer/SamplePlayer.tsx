@@ -57,6 +57,7 @@ const SamplePlayer = forwardRef<SamplePlayerRef, SamplePlayerProps>(
       if (isLooping !== isLoopEnabled) {
         localToggleLoop();
       }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isLoopEnabled]); // Intentionally omitting isLooping and localToggleLoop to avoid loops
 
     // Expose toggleLoop to parent via ref - now calls global context
