@@ -116,7 +116,7 @@ def process_files(audio_files: list[Path], folder_paths: list[str], progress_cal
     Phase 2: Process audio files and extract metadata
     Hash-based insertion: same hash = same file, multiple locations possible
     """
-    stats = {"total": len(audio_files), "added": 0, "skipped": 0, "errors": 0}
+    stats = {"total": len(audio_files), "added": 0, "skipped": 0, "errors": 0, "duplicates": 0}
 
     files_to_insert = []
     total_files = len(audio_files)
@@ -172,7 +172,8 @@ def process_files(audio_files: list[Path], folder_paths: list[str], progress_cal
 
                 # Bulk insert every 100 files
                 if len(files_to_insert) >= 100:
-                    _bulk_insert_files(conn, files_to_insert)
+                    duplicate_count = _bulk_insert_files(conn, files_to_insert)
+                    stats["duplicates"] += duplicate_count
                     files_to_insert = []
 
                 # Send progress update
@@ -186,7 +187,8 @@ def process_files(audio_files: list[Path], folder_paths: list[str], progress_cal
 
         # Insert remaining files
         if files_to_insert:
-            _bulk_insert_files(conn, files_to_insert)
+            duplicate_count = _bulk_insert_files(conn, files_to_insert)
+            stats["duplicates"] += duplicate_count
 
         # Update folder statistics for ALL scanned folders
         for folder_path_str in folder_paths:
@@ -213,7 +215,10 @@ def process_files(audio_files: list[Path], folder_paths: list[str], progress_cal
 
     # Send final progress
     if progress_callback:
-        progress_callback("processing", 100, f"Complete: {stats['added']} added, {stats['skipped']} skipped")
+        message = f"Complete: {stats['added']} added, {stats['skipped']} skipped"
+        if stats['duplicates'] > 0:
+            message += f", {stats['duplicates']} duplicates found"
+        progress_callback("processing", 100, message)
 
     logger.info(f"Processing complete: {stats}")
     return stats
@@ -230,14 +235,18 @@ def _get_or_create_metadata_key(conn: sqlite3.Connection, key: str) -> int:
     return conn.execute("SELECT last_insert_rowid()").fetchone()[0]
 
 
-def _bulk_insert_files(conn, files_data: list[dict]):
+def _bulk_insert_files(conn, files_data: list[dict]) -> int:
     """
     Helper to bulk insert files using hash-based structure
     - Checks if file (by hash) already exists
-    - If yes: adds new location
+    - If yes: adds new location (marks as duplicate)
     - If no: creates file + location
     - Inserts metadata into file_metadata table
+
+    Returns: Number of duplicate files found (files with multiple locations)
     """
+    duplicate_count = 0
+
     for file_data in files_data:
         file_hash = file_data["file_hash"]
 
@@ -246,6 +255,8 @@ def _bulk_insert_files(conn, files_data: list[dict]):
 
         if existing:
             file_id = existing["id"]
+            is_duplicate = True
+            duplicate_count += 1
             logger.debug(f"File hash {file_hash[:8]}... already exists as file_id {file_id}, adding new location")
         else:
             # Insert new file record
@@ -267,6 +278,15 @@ def _bulk_insert_files(conn, files_data: list[dict]):
                 ),
             )
             file_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+            is_duplicate = False
+
+        # Check how many locations this file already has
+        location_count = conn.execute(
+            "SELECT COUNT(*) as count FROM file_locations WHERE file_id = ?", (file_id,)
+        ).fetchone()["count"]
+
+        # Only the first location should be primary
+        is_primary = 1 if location_count == 0 else 0
 
         # Always insert file location (new location for this file)
         conn.execute(
@@ -274,9 +294,9 @@ def _bulk_insert_files(conn, files_data: list[dict]):
             INSERT INTO file_locations
             (file_id, file_hash, file_path, file_name,
              discovered_at, last_verified, is_primary)
-            VALUES (?, ?, ?, ?, datetime('now'), datetime('now'), 1)
+            VALUES (?, ?, ?, ?, datetime('now'), datetime('now'), ?)
         """,
-            (file_id, file_hash, file_data["filepath"], file_data["filename"]),
+            (file_id, file_hash, file_data["filepath"], file_data["filename"], is_primary),
         )
 
         # Insert metadata if exists (only if new file, avoid duplicates)
@@ -301,6 +321,8 @@ def _bulk_insert_files(conn, files_data: list[dict]):
                         )
                     except Exception as e:
                         logger.error(f"Error inserting metadata {key}={value}: {e}")
+
+    return duplicate_count
 
 
 def scan_folders_with_progress(folder_paths: list[str], progress_callback: Callable | None = None) -> dict:

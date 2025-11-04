@@ -29,6 +29,7 @@ export interface Sample {
   collections: Collection[];
   created_at?: string;
   updated_at?: string;
+  location_count?: number; // Number of locations (duplicates) for this file
 }
 
 // WebSocket message types
@@ -59,11 +60,17 @@ export interface WebSocketErrorMessage {
   message: string;
 }
 
+export interface WebSocketRefreshFoldersMessage {
+  type: 'refresh_folders';
+  message: string;
+}
+
 export type WebSocketMessage =
   | WebSocketProgressMessage
   | WebSocketStatsUpdateMessage
   | WebSocketCompleteMessage
-  | WebSocketErrorMessage;
+  | WebSocketErrorMessage
+  | WebSocketRefreshFoldersMessage;
 
 // Audio types
 export interface AudioPlaybackState {
@@ -183,4 +190,20 @@ export interface SelectAllFilters {
   folders?: string;
   exclude_folders?: string;
   search?: string;
+}
+
+// File location types (for duplicate file handling)
+export interface FileLocation {
+  id: number;
+  file_path: string;
+  file_name: string;
+  discovered_at: string;
+  last_verified: string;
+  is_primary: boolean;
+}
+
+export interface FileLocationsResponse {
+  file_id: number;
+  locations: FileLocation[];
+  has_duplicates: boolean;
 }

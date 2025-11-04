@@ -120,6 +120,7 @@ export default function useAudioPlayback(audioBlob: Blob | null): AudioPlaybackS
    * Play audio from current position
    */
   const play = useCallback(async () => {
+    console.log('Play called...');
     if (!audioBuffer) {
       console.log('Play failed: no audio buffer');
       return;
@@ -151,15 +152,27 @@ export default function useAudioPlayback(audioBlob: Blob | null): AudioPlaybackS
       }
     }
 
-    // Stop existing source
+    // Cancel any pending animation frames first
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+
+    // Stop existing source - be aggressive about cleanup
     if (sourceNodeRef.current) {
+      console.log('Cleaning up existing audio source...');
       try {
         sourceNodeRef.current.stop();
       } catch (_e) {
         // Ignore if already stopped
       }
-      sourceNodeRef.current.disconnect();
+      try {
+        sourceNodeRef.current.disconnect();
+      } catch (_e) {
+        // Ignore if already disconnected
+      }
       sourceNodeRef.current = null;
+      console.log('Existing audio source cleaned up');
     }
 
     // Create or reuse gain node (recreate if context changed)
@@ -254,18 +267,29 @@ export default function useAudioPlayback(audioBlob: Blob | null): AudioPlaybackS
    * If already stopped but paused mid-play, resets to beginning
    */
   const stop = useCallback(() => {
+    console.log('Stopping audio playback...');
+
+    // Cancel any pending animation frames
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+      console.log('Animation frame cancelled');
+    }
+
     // Stop audio source if playing
     if (sourceNodeRef.current) {
       try {
         sourceNodeRef.current.stop();
-      } catch (_e) {
-        // Ignore if already stopped
+        console.log('Audio source stopped');
+      } catch (e) {
+        console.log('Audio source already stopped or error:', e);
       }
       // Disconnect to immediately cut off audio
       try {
         sourceNodeRef.current.disconnect();
-      } catch (_e) {
-        // Ignore if already disconnected
+        console.log('Audio source disconnected');
+      } catch (e) {
+        console.log('Audio source already disconnected or error:', e);
       }
       sourceNodeRef.current = null;
     }
@@ -274,6 +298,7 @@ export default function useAudioPlayback(audioBlob: Blob | null): AudioPlaybackS
     setIsPlaying(false);
     setPlaybackPosition(0);
     pauseTimeRef.current = 0;
+    console.log('Audio state reset to beginning');
   }, []);
 
   /**

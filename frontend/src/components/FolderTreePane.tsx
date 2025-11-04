@@ -133,7 +133,7 @@ interface FolderTreePaneProps {
   samplePaths?: string[];
   includedFolders?: string[];
   excludedFolders?: string[];
-  onFolderClick?: (folderPath: string, isShiftClick: boolean) => void;
+  onFolderClick?: (folderPath: string, isCtrlClick: boolean, isRightClick: boolean) => void;
   onRemoveIncluded?: (folderPath: string) => void;
   onRemoveExcluded?: (folderPath: string) => void;
   isVisible?: boolean;
@@ -144,7 +144,7 @@ interface FolderTreePaneProps {
 /**
  * FolderTreePane - A hierarchical folder filter with expand/collapse
  *
- * Click to include, Ctrl/Cmd+Click to exclude folders
+ * Click to select, Cmd/Ctrl+Click to add, Right-Click to exclude folders
  */
 export default function FolderTreePane({
   samplePaths,
@@ -285,9 +285,9 @@ export default function FolderTreePane({
     }));
   };
 
-  const handleFolderClick = (folderPath: string, isShiftClick: boolean) => {
+  const handleFolderClick = (folderPath: string, isCtrlClick: boolean, isRightClick: boolean) => {
     if (onFolderClick) {
-      onFolderClick(folderPath, isShiftClick);
+      onFolderClick(folderPath, isCtrlClick, isRightClick);
     }
   };
 
@@ -365,8 +365,12 @@ export default function FolderTreePane({
             {/* Folder Name - Clickable area */}
             <div
               className="flex-1 flex items-center justify-between cursor-pointer min-w-0"
-              onClick={(e) => handleFolderClick(value.fullPath, e.ctrlKey || e.metaKey)}
-              title={`${value.fullPath}\nClick to include, Ctrl/Cmd+Click to exclude`}
+              onClick={(e) => handleFolderClick(value.fullPath, e.ctrlKey || e.metaKey, false)}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                handleFolderClick(value.fullPath, false, true);
+              }}
+              title={`${value.fullPath}\nClick to select, Cmd/Ctrl+Click to add, Right-Click to exclude`}
             >
               <div className="flex items-center gap-2 min-w-0">
                 <span className="truncate">{value.name}</span>

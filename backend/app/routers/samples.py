@@ -63,9 +63,13 @@ async def list_files(
         include_folders = [f.strip() for f in folders.split(",")] if folders else []
         exclude_folders_list = [f.strip() for f in exclude_folders.split(",")] if exclude_folders else []
 
-        # Build base query
+        # Build base query with location count
         query = """
-            SELECT DISTINCT f.*, fl.file_path as filepath, fl.file_name as filename
+            SELECT DISTINCT
+                f.*,
+                fl.file_path as filepath,
+                fl.file_name as filename,
+                (SELECT COUNT(*) FROM file_locations WHERE file_id = f.id) as location_count
             FROM files f
             JOIN file_locations fl ON f.id = fl.file_id AND fl.is_primary = 1
             WHERE f.indexed = 1
@@ -228,10 +232,14 @@ async def list_files(
 async def get_file(request: Request, file_id: int):
     """Get file details including tags and locations"""
     with get_db_connection(request) as conn:
-        # Get file with primary location
+        # Get file with primary location and location count
         file = conn.execute(
             """
-            SELECT f.*, fl.file_path as filepath, fl.file_name as filename
+            SELECT
+                f.*,
+                fl.file_path as filepath,
+                fl.file_name as filename,
+                (SELECT COUNT(*) FROM file_locations WHERE file_id = f.id) as location_count
             FROM files f
             JOIN file_locations fl ON f.id = fl.file_id AND fl.is_primary = 1
             WHERE f.id = ?
@@ -290,7 +298,6 @@ async def stream_audio(request: Request, file_id: int):
             raise HTTPException(status_code=404, detail="File not found")
 
         filepath_str = file["file_path"]
-        file_format = file["format"].lower().replace(".", "")
 
         # In demo mode, serve from demo audio folder
         if DEMO_MODE and filepath_str.startswith("/demo/audio/"):
@@ -388,9 +395,13 @@ async def select_all_samples(request: Request, filters: SelectAllRequest):
         include_tag_ids = [int(tid) for tid in filters.tags.split(",")] if filters.tags else []
         exclude_tag_ids = [int(tid) for tid in filters.exclude_tags.split(",")] if filters.exclude_tags else []
         include_collection_ids = [int(cid) for cid in filters.collections.split(",")] if filters.collections else []
-        exclude_collection_ids = [int(cid) for cid in filters.exclude_collections.split(",")] if filters.exclude_collections else []
+        exclude_collection_ids = (
+            [int(cid) for cid in filters.exclude_collections.split(",")] if filters.exclude_collections else []
+        )
         include_folders_list = [f.strip() for f in filters.folders.split(",")] if filters.folders else []
-        exclude_folders_list = [f.strip() for f in filters.exclude_folders.split(",")] if filters.exclude_folders else []
+        exclude_folders_list = (
+            [f.strip() for f in filters.exclude_folders.split(",")] if filters.exclude_folders else []
+        )
 
         # Build query - only select IDs for performance
         query = """
@@ -494,12 +505,117 @@ async def get_bulk_tag_states(request: Request, req: BulkTagStatesRequest):
             else:
                 state = "none"
 
-            tags.append({
-                "id": tag_dict["id"],
-                "name": tag_dict["name"],
-                "color": tag_dict["color"],
-                "state": state,
-                "count": count,
-            })
+            tags.append(
+                {
+                    "id": tag_dict["id"],
+                    "name": tag_dict["name"],
+                    "color": tag_dict["color"],
+                    "state": state,
+                    "count": count,
+                }
+            )
 
         return {"tags": tags}
+
+
+@router.get("/{file_id}/locations")
+async def get_file_locations(request: Request, file_id: int):
+    """Get all locations for a file (including duplicates)"""
+    with get_db_connection(request) as conn:
+        # Check if file exists
+        file_exists = conn.execute("SELECT 1 FROM files WHERE id = ?", (file_id,)).fetchone()
+        if not file_exists:
+            raise HTTPException(status_code=404, detail="File not found")
+
+        # Get all locations for this file
+        locations = conn.execute(
+            """
+            SELECT id, file_path, file_name, discovered_at, last_verified, is_primary
+            FROM file_locations
+            WHERE file_id = ?
+            ORDER BY is_primary DESC, discovered_at ASC
+            """,
+            (file_id,),
+        ).fetchall()
+
+        return {
+            "file_id": file_id,
+            "locations": [dict(loc) for loc in locations],
+            "has_duplicates": len(locations) > 1,
+        }
+
+
+class SetPrimaryRequest(BaseModel):
+    location_id: int
+
+
+@router.put("/{file_id}/locations/primary")
+async def set_primary_location(request: Request, file_id: int, req: SetPrimaryRequest):
+    """Set a specific location as the primary location for a file"""
+    with get_db_connection(request) as conn:
+        # Check if location exists and belongs to this file
+        location = conn.execute(
+            "SELECT id FROM file_locations WHERE id = ? AND file_id = ?",
+            (req.location_id, file_id),
+        ).fetchone()
+
+        if not location:
+            raise HTTPException(status_code=404, detail="Location not found or doesn't belong to this file")
+
+        # Unset all other locations as primary for this file
+        conn.execute("UPDATE file_locations SET is_primary = 0 WHERE file_id = ?", (file_id,))
+
+        # Set the specified location as primary
+        conn.execute("UPDATE file_locations SET is_primary = 1 WHERE id = ?", (req.location_id,))
+
+        conn.commit()
+
+        return {"status": "updated", "file_id": file_id, "primary_location_id": req.location_id}
+
+
+@router.delete("/{file_id}/locations/{location_id}")
+async def delete_file_location(request: Request, file_id: int, location_id: int):
+    """Remove a specific location from a file (if file has multiple locations)"""
+    with get_db_connection(request) as conn:
+        # Check how many locations this file has
+        location_count = conn.execute(
+            "SELECT COUNT(*) as count FROM file_locations WHERE file_id = ?", (file_id,)
+        ).fetchone()["count"]
+
+        if location_count <= 1:
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot delete the only location. Delete the entire file instead.",
+            )
+
+        # Check if location exists and belongs to this file
+        location = conn.execute(
+            "SELECT is_primary FROM file_locations WHERE id = ? AND file_id = ?",
+            (location_id, file_id),
+        ).fetchone()
+
+        if not location:
+            raise HTTPException(status_code=404, detail="Location not found or doesn't belong to this file")
+
+        was_primary = location["is_primary"]
+
+        # Delete the location
+        conn.execute("DELETE FROM file_locations WHERE id = ?", (location_id,))
+
+        # If we deleted the primary location, make another one primary
+        if was_primary:
+            # Set the oldest remaining location as primary
+            conn.execute(
+                """
+                UPDATE file_locations
+                SET is_primary = 1
+                WHERE file_id = ?
+                ORDER BY discovered_at ASC
+                LIMIT 1
+                """,
+                (file_id,),
+            )
+
+        conn.commit()
+
+        return {"status": "deleted", "file_id": file_id, "location_id": location_id}

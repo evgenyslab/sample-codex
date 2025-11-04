@@ -37,8 +37,10 @@ class ScanRequest(BaseModel):
 
 
 @router.get("/browse")
-async def browse_filesystem(path: str = None) -> dict[str, Any]:
-    """Browse filesystem directories"""
+async def browse_filesystem(
+    path: str = None, include_files: bool = False, file_filter: str = None
+) -> dict[str, Any]:
+    """Browse filesystem directories and optionally files"""
     # Disable in demo mode
     if DEMO_MODE:
         raise HTTPException(status_code=403, detail="Folder browsing is disabled in demo mode.") from None
@@ -56,18 +58,27 @@ async def browse_filesystem(path: str = None) -> dict[str, Any]:
         if not target_path.is_dir():
             raise HTTPException(status_code=400, detail="Path is not a directory") from None
 
-        # Get directories only
+        # Get directories and optionally files
         directories = []
+        files = []
         try:
             for item in sorted(target_path.iterdir()):
                 if item.is_dir() and not item.name.startswith("."):
                     directories.append(item.name)
+                elif include_files and item.is_file() and not item.name.startswith("."):
+                    # Apply file filter if specified
+                    if file_filter is None or item.name.endswith(file_filter):
+                        files.append(item.name)
         except PermissionError:
             raise HTTPException(status_code=403, detail="Permission denied") from PermissionError
 
         parent = str(target_path.parent) if target_path.parent != target_path else None
 
-        return {"path": str(target_path), "directories": directories, "parent": parent}
+        result = {"path": str(target_path), "directories": directories, "parent": parent}
+        if include_files:
+            result["files"] = files
+
+        return result
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -103,8 +114,8 @@ async def get_folders_metadata(request: Request):
             return {"folders": [], "common_root": ""}
 
         # Extract directory paths and count samples in each
-        from collections import defaultdict
         import os
+        from collections import defaultdict
 
         folder_counts = defaultdict(int)
         for path in all_paths:
@@ -121,19 +132,13 @@ async def get_folders_metadata(request: Request):
             common_parts = all_paths[0].split(os.sep)[:-1]  # Exclude filename
             for path in all_paths[1:]:
                 path_parts = path.split(os.sep)[:-1]
-                common_parts = [
-                    p for i, p in enumerate(common_parts)
-                    if i < len(path_parts) and p == path_parts[i]
-                ]
+                common_parts = [p for i, p in enumerate(common_parts) if i < len(path_parts) and p == path_parts[i]]
             common_root = os.sep.join(common_parts) if common_parts else os.sep
         else:
             common_root = ""
 
         # Convert to list of dicts
-        folders = [
-            {"path": path, "sample_count": count}
-            for path, count in sorted(folder_counts.items())
-        ]
+        folders = [{"path": path, "sample_count": count} for path, count in sorted(folder_counts.items())]
 
         return {"folders": folders, "common_root": common_root}
 
@@ -252,6 +257,9 @@ async def websocket_scan_endpoint(websocket: WebSocket):
                 },
             }
         )
+
+        # Send signal to refresh folder metadata (folder tree)
+        await websocket.send_json({"type": "refresh_folders", "message": "Folder metadata updated"})
 
         # Send completion message
         await websocket.send_json({"type": "complete", "message": "Scan completed successfully"})

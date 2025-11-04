@@ -4,10 +4,11 @@ import { bulkUpdateSampleCollections, bulkUpdateSampleTags, getScannedFolders, h
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import CollectionPopup from '../components/CollectionPopup/CollectionPopup.tsx'
+import DuplicateLocationsModal from '../components/DuplicateLocationsModal'
 import FilterPane from '../components/FilterPane'
 import FolderBrowserModal from '../components/FolderBrowserModal.tsx'
 import FolderTreePane from '../components/FolderTreePane'
-import SamplePlayer from '../components/SamplePlayer/SamplePlayer'
+import SamplePlayer, { SamplePlayerRef } from '../components/SamplePlayer/SamplePlayer'
 import SettingsModal from '../components/SettingsModal.tsx'
 import Sidebar from '../components/Sidebar'
 import TagPopup from '../components/TagPopup/TagPopup.tsx'
@@ -53,6 +54,9 @@ export default function Browser() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isTagPopupOpen, setIsTagPopupOpen] = useState(false)
   const [isCollectionPopupOpen, setIsCollectionPopupOpen] = useState(false)
+  const [isDuplicateLocationsOpen, setIsDuplicateLocationsOpen] = useState(false)
+  const [duplicateFileId, setDuplicateFileId] = useState<number | null>(null)
+  const [duplicateFilename, setDuplicateFilename] = useState<string>('')
   const [selectedSamples, setSelectedSamples] = useState<Set<number>>(new Set())
   const [selectionInfo, setSelectionInfo] = useState<{ total: number; visibleCount: number; isPartial: boolean } | null>(null)
 
@@ -92,6 +96,7 @@ export default function Browser() {
   const [sortDirection, setSortDirection] = useState<SortDirection | null>(null)
   const lastClickedIndexRef = useRef<number | null>(null)
   const isLoadingMoreRef = useRef(false)
+  const samplePlayerRef = useRef<SamplePlayerRef | null>(null)
 
   const tableRef = useRef<HTMLDivElement | null>(null)
 
@@ -287,6 +292,11 @@ export default function Browser() {
     setAccumulatedSamples([])
     isLoadingMoreRef.current = false
 
+    // Reset scroll position to top
+    if (tableRef.current) {
+      tableRef.current.scrollTop = 0
+    }
+
     if (isRightClick) {
       // Right-click: toggle exclude
       if (excludedTags.includes(tagId)) {
@@ -306,26 +316,44 @@ export default function Browser() {
     }
   }
 
-  const handleFolderClick = (folderPath: string, isCtrlClick = false) => {
+  const handleFolderClick = (folderPath: string, isCtrlClick = false, isRightClick = false) => {
     // Reset pagination when filters change
     setPage(1)
     setAccumulatedSamples([])
     isLoadingMoreRef.current = false
 
-    if (isCtrlClick) {
-      // Ctrl/Cmd-click: toggle exclude
+    // Reset scroll position to top
+    if (tableRef.current) {
+      tableRef.current.scrollTop = 0
+    }
+
+    if (isRightClick) {
+      // Right-click: toggle exclude
       if (excludedFolders.includes(folderPath)) {
         setExcludedFolders(excludedFolders.filter(p => p !== folderPath))
       } else {
         setExcludedFolders([...excludedFolders, folderPath])
+        // Remove from included if it was there
         setIncludedFolders(includedFolders.filter(p => p !== folderPath))
       }
-    } else {
-      // Click: toggle include
+    } else if (isCtrlClick) {
+      // Cmd/Ctrl-click: add to selection (or remove if already included)
       if (includedFolders.includes(folderPath)) {
         setIncludedFolders(includedFolders.filter(p => p !== folderPath))
       } else {
         setIncludedFolders([...includedFolders, folderPath])
+        // Remove from excluded if it was there
+        setExcludedFolders(excludedFolders.filter(p => p !== folderPath))
+      }
+    } else {
+      // Regular click: select ONLY this folder (replace selection)
+      if (includedFolders.length === 1 && includedFolders[0] === folderPath) {
+        // If clicking the only selected folder, deselect it
+        setIncludedFolders([])
+      } else {
+        // Select only this folder
+        setIncludedFolders([folderPath])
+        // Remove from excluded if it was there
         setExcludedFolders(excludedFolders.filter(p => p !== folderPath))
       }
     }
@@ -336,6 +364,11 @@ export default function Browser() {
     setPage(1)
     setAccumulatedSamples([])
     isLoadingMoreRef.current = false
+
+    // Reset scroll position to top
+    if (tableRef.current) {
+      tableRef.current.scrollTop = 0
+    }
 
     if (isRightClick) {
       // Right-click: toggle exclude
@@ -569,6 +602,12 @@ export default function Browser() {
         // Toggle folder pane
         e.preventDefault()
         setIsFolderPaneVisible(prev => !prev)
+      } else if (e.key === 'ArrowRight' && selectedSample) {
+        // Restart playback from beginning
+        e.preventDefault()
+        if (samplePlayerRef.current) {
+          samplePlayerRef.current.restart()
+        }
       }
     }
 
@@ -808,8 +847,22 @@ export default function Browser() {
                         }
                       }}
                     >
-                      <div className="flex-1 px-4 py-2 truncate text-foreground">
-                        {sample.filename}
+                      <div className="flex-1 px-4 py-2 flex items-center gap-2">
+                        <span className="truncate text-foreground">{sample.filename}</span>
+                        {sample.location_count && sample.location_count > 1 && (
+                          <span
+                            className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 border border-yellow-500/30 cursor-pointer hover:bg-yellow-500/30 transition-colors flex-shrink-0"
+                            title={`This file has ${sample.location_count} locations (duplicates). Click to view all locations.`}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setDuplicateFileId(sample.id)
+                              setDuplicateFilename(sample.filename)
+                              setIsDuplicateLocationsOpen(true)
+                            }}
+                          >
+                            {sample.location_count}x
+                          </span>
+                        )}
                       </div>
                       <div className="w-32 px-4 py-2 text-muted-foreground font-mono text-xs">
                         {formatDuration((sample as any).duration)}
@@ -832,6 +885,7 @@ export default function Browser() {
           </div>
 
           <SamplePlayer
+            ref={samplePlayerRef}
             sample={selectedSample}
             isOpen={isPlayerOpen}
             onClose={() => setSelectedSample(null)}
@@ -848,6 +902,19 @@ export default function Browser() {
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
       />
+
+      {duplicateFileId && (
+        <DuplicateLocationsModal
+          isOpen={isDuplicateLocationsOpen}
+          onClose={() => {
+            setIsDuplicateLocationsOpen(false)
+            setDuplicateFileId(null)
+            setDuplicateFilename('')
+          }}
+          fileId={duplicateFileId}
+          filename={duplicateFilename}
+        />
+      )}
 
       <TagPopup
         isOpen={isTagPopupOpen}

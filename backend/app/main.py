@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import ALLOWED_ORIGINS, FRONTEND_BUILD_DIR
 from app.db_connection import db
-from app.routers import collections, folders, samples, search, tags
+from app.routers import collections, database, folders, samples, search, tags
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -35,23 +35,32 @@ async def lifespan(app: FastAPI) -> Generator[None, Any, None]:  # noqa: ARG001
     """Application lifespan events"""
     # Startup
     logger.info("Starting Audio Sample Manager backend...")
-    health = db.check_health()
-    logger.info(f"Database health: {'OK' if health else 'FAILED'}")
 
-    # Check for incomplete scans and complete them (only in production mode)
+    # In production mode, check if database exists before running health check
     if not DEMO_MODE:
-        logger.info("Checking for incomplete folder scans...")
-        from app.services.scanner import check_and_complete_incomplete_scans
+        if db.exists():
+            health = db.check_health()
+            logger.info(f"Database health: {'OK' if health else 'FAILED'}")
 
-        try:
-            scan_stats = check_and_complete_incomplete_scans()
-            if scan_stats["resumed"] > 0:
-                logger.info(
-                    f"Completed {scan_stats['resumed']} incomplete scans: "
-                    f"{scan_stats['completed']} samples added, {scan_stats['errors']} errors"
-                )
-        except Exception as e:
-            logger.error(f"Error checking incomplete scans on startup: {e}")
+            # Check for incomplete scans and complete them
+            logger.info("Checking for incomplete folder scans...")
+            from app.services.scanner import check_and_complete_incomplete_scans
+
+            try:
+                scan_stats = check_and_complete_incomplete_scans()
+                if scan_stats["resumed"] > 0:
+                    logger.info(
+                        f"Completed {scan_stats['resumed']} incomplete scans: "
+                        f"{scan_stats['completed']} samples added, {scan_stats['errors']} errors"
+                    )
+            except Exception as e:
+                logger.error(f"Error checking incomplete scans on startup: {e}")
+        else:
+            logger.warning("⚠️  Database not found. User will be prompted to load or create a database.")
+    else:
+        # Demo mode always has database ready
+        health = db.check_health()
+        logger.info(f"Database health (demo mode): {'OK' if health else 'FAILED'}")
 
     yield
 
@@ -82,6 +91,7 @@ if DEMO_MODE:
     logger.info("Demo session middleware enabled")
 
 # API routes
+app.include_router(database.router, prefix="/api", tags=["database"])
 app.include_router(folders.router, prefix="/api/folders", tags=["folders"])
 app.include_router(samples.router, prefix="/api/samples", tags=["samples"])
 app.include_router(tags.router, prefix="/api/tags", tags=["tags"])

@@ -22,9 +22,10 @@ logger = logging.getLogger(__name__)
 class Database:
     """SQLite database manager with connection pooling"""
 
-    def __init__(self, db_path: str = DATABASE_PATH):
+    def __init__(self, db_path: str = DATABASE_PATH, auto_create: bool = True):
         self.db_path = db_path
-        self._ensure_database()
+        if auto_create:
+            self._ensure_database()
 
     def _ensure_database(self) -> None:
         """Create database file and tables if they don't exist"""
@@ -33,6 +34,10 @@ class Database:
         with self.get_connection() as conn:
             self._create_tables(conn)
             logger.info(f"Database initialized at {self.db_path}")
+
+    def exists(self) -> bool:
+        """Check if database file exists"""
+        return Path(self.db_path).exists()
 
     def get_connection(self) -> sqlite3.Connection:
         """Get a new database connection"""
@@ -251,5 +256,5 @@ class Database:
             return False
 
 
-# Global database instance
-db = Database()
+# Global database instance (no auto-create - let user initialize via API)
+db = Database(auto_create=False)

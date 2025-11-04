@@ -106,6 +106,10 @@ export function useScanProgress() {
             // Update folders query
             queryClient.invalidateQueries({ queryKey: ['folders'] });
           }
+        } else if (data.type === 'refresh_folders') {
+          // Refetch folder metadata (folder tree in sidebar)
+          queryClient.invalidateQueries({ queryKey: ['folders-metadata'] });
+          queryClient.refetchQueries({ queryKey: ['folders-metadata'] });
         } else if (data.type === 'complete') {
           // Show success toast
           toast.success(data.message, {

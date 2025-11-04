@@ -9,14 +9,18 @@ interface FolderData {
   path: string;
   parent: string | null;
   directories: string[];
+  files?: string[];
 }
 
 interface FolderBrowserModalProps {
   isOpen: boolean;
   onClose: () => void;
+  mode?: 'scan' | 'select-folder' | 'select-database';
+  onConfirm?: (path: string) => void;
+  fileFilter?: string; // e.g., ".db" for database files
 }
 
-const FolderBrowserModal = ({ isOpen, onClose }: FolderBrowserModalProps) => {
+const FolderBrowserModal = ({ isOpen, onClose, mode = 'scan', onConfirm, fileFilter }: FolderBrowserModalProps) => {
   const [currentPath, setCurrentPath] = useState('');
   const [checkedFolders, setCheckedFolders] = useState<string[]>([]);
   const [isScanning, setIsScanning] = useState(false);
@@ -36,9 +40,14 @@ const FolderBrowserModal = ({ isOpen, onClose }: FolderBrowserModalProps) => {
   }, [isOpen, onClose]);
 
   const { data: folderData, isLoading } = useQuery({
-    queryKey: ['browse', currentPath],
+    queryKey: ['browse', currentPath, mode, fileFilter],
     queryFn: async () => {
-      const response = await browseFolders(currentPath || null);
+      const includeFiles = mode === 'select-database';
+      const response = await browseFolders(
+        currentPath || undefined,
+        includeFiles,
+        includeFiles ? fileFilter : undefined
+      );
       return response.data as FolderData;
     },
     enabled: isOpen,
@@ -78,26 +87,47 @@ const FolderBrowserModal = ({ isOpen, onClose }: FolderBrowserModalProps) => {
     });
   };
 
+  const handleFileClick = (fileName: string) => {
+    if (mode === 'select-database' && folderData && onConfirm) {
+      const fullPath = folderData.path + '/' + fileName;
+      onConfirm(fullPath);
+      onClose();
+    }
+  };
+
   const handleConfirmSelection = () => {
-    if (checkedFolders.length > 0 && !isScanning && folderData) {
-      setIsScanning(true);
-
-      // Convert checked folders to full paths
-      const folderPaths = checkedFolders.map(dirName => folderData.path + '/' + dirName);
-
-      // Start WebSocket scan
-      startScan(folderPaths);
-
-      // Wait a bit then close modal and refresh data
-      setTimeout(() => {
-        setIsScanning(false);
-        setCheckedFolders([]);
+    if (mode === 'select-folder') {
+      // In select-folder mode, return the current path (not checked folders)
+      if (folderData && onConfirm) {
+        onConfirm(folderData.path);
         onClose();
+      }
+    } else if (mode === 'select-database') {
+      // In select-database mode, files are clicked directly (no confirm button needed)
+      // This shouldn't be called, but just in case
+      return;
+    } else {
+      // In scan mode, scan the checked folders
+      if (checkedFolders.length > 0 && !isScanning && folderData) {
+        setIsScanning(true);
 
-        // Refresh queries after scan starts
-        queryClient.invalidateQueries({ queryKey: ['folders'] });
-        queryClient.invalidateQueries({ queryKey: ['samples'] });
-      }, 200);
+        // Convert checked folders to full paths
+        const folderPaths = checkedFolders.map(dirName => folderData.path + '/' + dirName);
+
+        // Start WebSocket scan
+        startScan(folderPaths);
+
+        // Wait a bit then close modal and refresh data
+        setTimeout(() => {
+          setIsScanning(false);
+          setCheckedFolders([]);
+          onClose();
+
+          // Refresh queries after scan starts
+          queryClient.invalidateQueries({ queryKey: ['folders'] });
+          queryClient.invalidateQueries({ queryKey: ['samples'] });
+        }, 200);
+      }
     }
   };
 
@@ -114,9 +144,19 @@ const FolderBrowserModal = ({ isOpen, onClose }: FolderBrowserModalProps) => {
         <div className="bg-card px-6 py-4 border-b border-border">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold tracking-tight text-card-foreground">Select Folders to Scan</h2>
+              <h2 className="text-lg font-semibold tracking-tight text-card-foreground">
+                {mode === 'select-folder'
+                  ? 'Choose Database Location'
+                  : mode === 'select-database'
+                  ? 'Select Database File'
+                  : 'Select Folders to Scan'}
+              </h2>
               <p className="text-xs text-muted-foreground mt-1">
-                Navigate to and select folders containing audio files
+                {mode === 'select-folder'
+                  ? 'Navigate to the folder where you want to create the database'
+                  : mode === 'select-database'
+                  ? 'Navigate to and select a database file'
+                  : 'Navigate to and select folders containing audio files'}
               </p>
             </div>
             <button
@@ -145,43 +185,82 @@ const FolderBrowserModal = ({ isOpen, onClose }: FolderBrowserModalProps) => {
           </div>
         </div>
 
-        {/* Directory List */}
+        {/* Directory and File List */}
         <div className="flex-1 overflow-y-auto px-6 py-4 bg-card">
           {isLoading ? (
             <div className="text-center py-8 text-sm text-muted-foreground">Loading...</div>
-          ) : folderData?.directories && folderData.directories.length > 0 ? (
+          ) : (
             <div className="space-y-1">
-              {folderData.directories.map((dir) => {
-                const isChecked = checkedFolders.includes(dir);
-                return (
-                  <div
-                    key={dir}
-                    className="flex items-center gap-3 px-3 py-2.5 hover:bg-accent rounded-md transition-colors text-sm text-card-foreground border border-transparent hover:border-border group"
-                  >
-                    <button
-                      onClick={() => handleFolderCheck(dir)}
-                      className="flex-shrink-0 cursor-pointer transition-colors"
-                      aria-label={isChecked ? 'Unselect folder' : 'Select folder'}
+              {/* Directories */}
+              {folderData?.directories && folderData.directories.length > 0 ? (
+                folderData.directories.map((dir) => {
+                  const isChecked = checkedFolders.includes(dir);
+                  return (
+                    <div
+                      key={dir}
+                      className="flex items-center gap-3 px-3 py-2.5 hover:bg-accent rounded-md transition-colors text-sm text-card-foreground border border-transparent hover:border-border group"
                     >
-                      {isChecked ? (
-                        <FolderFilledIcon className="w-5 h-5 text-primary" />
-                      ) : (
+                      {mode === 'scan' && (
+                        <button
+                          onClick={() => handleFolderCheck(dir)}
+                          className="flex-shrink-0 cursor-pointer transition-colors"
+                          aria-label={isChecked ? 'Unselect folder' : 'Select folder'}
+                        >
+                          {isChecked ? (
+                            <FolderFilledIcon className="w-5 h-5 text-primary" />
+                          ) : (
+                            <FolderIcon className="w-5 h-5 text-muted-foreground group-hover:text-card-foreground" />
+                          )}
+                        </button>
+                      )}
+                      {(mode === 'select-folder' || mode === 'select-database') && (
                         <FolderIcon className="w-5 h-5 text-muted-foreground group-hover:text-card-foreground" />
                       )}
-                    </button>
-                    <button
-                      onClick={() => handleNavigate(dir)}
-                      className="flex-1 text-left hover:text-primary transition-colors cursor-pointer"
+                      <button
+                        onClick={() => handleNavigate(dir)}
+                        className="flex-1 text-left hover:text-primary transition-colors cursor-pointer"
+                      >
+                        {dir}
+                      </button>
+                    </div>
+                  );
+                })
+              ) : null}
+
+              {/* Files (only in select-database mode) */}
+              {mode === 'select-database' && folderData?.files && folderData.files.length > 0 ? (
+                folderData.files.map((file) => (
+                  <div
+                    key={file}
+                    className="flex items-center gap-3 px-3 py-2.5 hover:bg-accent rounded-md transition-colors text-sm text-card-foreground border border-transparent hover:border-border group cursor-pointer"
+                    onClick={() => handleFileClick(file)}
+                  >
+                    <svg
+                      className="w-5 h-5 text-blue-500"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
                     >
-                      {dir}
-                    </button>
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+                      />
+                    </svg>
+                    <span className="flex-1 hover:text-primary transition-colors">{file}</span>
                   </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-sm text-muted-foreground">
-              No subdirectories found
+                ))
+              ) : null}
+
+              {/* Empty state */}
+              {folderData &&
+                folderData.directories.length === 0 &&
+                (!folderData.files || folderData.files.length === 0) && (
+                  <div className="text-center py-8 text-sm text-muted-foreground">
+                    {mode === 'select-database' ? 'No database files found' : 'No subdirectories found'}
+                  </div>
+                )}
             </div>
           )}
         </div>
@@ -194,13 +273,18 @@ const FolderBrowserModal = ({ isOpen, onClose }: FolderBrowserModalProps) => {
           >
             Cancel
           </button>
-          <button
-            onClick={handleConfirmSelection}
-            disabled={checkedFolders.length === 0 || isScanning}
-            className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors h-9 px-3 text-primary bg-accent-foreground/20 hover:bg-accent-foreground/50 disabled:opacity-50 disabled:pointer-events-none"
-          >
-            {isScanning ? 'Starting Scan...' : `Confirm${checkedFolders.length > 0 ? ` (${checkedFolders.length})` : ''}`}
-          </button>
+          {mode !== 'select-database' && (
+            <button
+              onClick={handleConfirmSelection}
+              disabled={mode === 'scan' ? (checkedFolders.length === 0 || isScanning) : !folderData}
+              className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors h-9 px-3 text-primary bg-accent-foreground/20 hover:bg-accent-foreground/50 disabled:opacity-50 disabled:pointer-events-none"
+            >
+              {mode === 'select-folder'
+                ? 'Select This Folder'
+                : (isScanning ? 'Starting Scan...' : `Confirm${checkedFolders.length > 0 ? ` (${checkedFolders.length})` : ''}`)
+              }
+            </button>
+          )}
         </div>
       </div>
     </div>

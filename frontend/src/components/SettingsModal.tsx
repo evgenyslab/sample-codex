@@ -2,8 +2,9 @@ import { XIcon, MoonIcon, SunIcon } from './ui/Icons';
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTheme } from '../contexts/ThemeContext';
-import { clearAllData, healthCheck } from '../services/api';
+import { clearAllData, healthCheck, initializeDatabase } from '../services/api';
 import { toast } from 'sonner';
+import FolderBrowserModal from './FolderBrowserModal';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -12,6 +13,7 @@ interface SettingsModalProps {
 
 const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
   const [isClearing, setIsClearing] = useState(false);
+  const [showDatabaseBrowser, setShowDatabaseBrowser] = useState(false);
   const [databasePath, setDatabasePath] = useState<string>('');
   const queryClient = useQueryClient();
   const { theme, toggleTheme } = useTheme();
@@ -69,6 +71,33 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
     }
   };
 
+  const handleChangeDatabase = () => {
+    setShowDatabaseBrowser(true);
+  };
+
+  const handleDatabaseSelected = async (dbPath: string) => {
+    setShowDatabaseBrowser(false);
+
+    try {
+      const response = await initializeDatabase({
+        mode: 'load',
+        path: dbPath,
+      });
+
+      if (response.data.success) {
+        toast.success('Database changed successfully. Reloading...');
+        // Reload the page to use the new database
+        setTimeout(() => {
+          window.location.reload();
+        }, 500);
+      } else {
+        toast.error(response.data.error || 'Failed to load database');
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to load database');
+    }
+  };
+
 
   return (
     <div
@@ -106,6 +135,23 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
               </p>
             </div>
 
+            {/* Change Database */}
+            <div className="flex items-center justify-between p-3 bg-blue-500/10 rounded-md border border-blue-500/20">
+              <div>
+                <p className="text-sm text-card-foreground">Change Database</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Load a different database file
+                </p>
+              </div>
+              <button
+                onClick={handleChangeDatabase}
+                className="px-3 py-1.5 text-xs font-medium bg-blue-500 hover:bg-blue-600 text-white rounded-md transition-colors"
+              >
+                Change DB
+              </button>
+            </div>
+
+            {/* Clear All Data */}
             <div className="flex items-center justify-between p-3 bg-red-500/10 rounded-md border border-red-500/20">
               <div>
                 <p className="text-sm text-card-foreground">Clear All Data</p>
@@ -144,6 +190,17 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
           </button>
         </div>
       </div>
+
+      {/* Database Browser Modal */}
+      {showDatabaseBrowser && (
+        <FolderBrowserModal
+          isOpen={showDatabaseBrowser}
+          onClose={() => setShowDatabaseBrowser(false)}
+          onConfirm={handleDatabaseSelected}
+          mode="select-database"
+          fileFilter=".db"
+        />
+      )}
     </div>
   );
 };

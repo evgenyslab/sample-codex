@@ -17,6 +17,7 @@ interface SamplePlayerProps {
 
 export interface SamplePlayerRef {
   toggleLoop: () => void;
+  restart: () => void;
 }
 
 /**
@@ -31,6 +32,7 @@ const SamplePlayer = forwardRef<SamplePlayerRef, SamplePlayerProps>(
     const [error, setError] = useState<string | null>(null);
     const [shouldAutoPlay, setShouldAutoPlay] = useState(false);
     const expectedSampleIdRef = useRef<number | null>(null);
+    const isRestartingRef = useRef(false);
 
     // Get global audio player context
     const { isLoopEnabled, setIsPlaying: setGlobalIsPlaying, toggleLoop: globalToggleLoop, isAutoPlayEnabled } = useAudioPlayer();
@@ -60,9 +62,31 @@ const SamplePlayer = forwardRef<SamplePlayerRef, SamplePlayerProps>(
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isLoopEnabled]); // Intentionally omitting isLooping and localToggleLoop to avoid loops
 
-    // Expose toggleLoop to parent via ref - now calls global context
+    // Restart function - stops and immediately plays from beginning
+    const restart = useCallback(() => {
+      // Prevent concurrent restarts
+      if (isRestartingRef.current) {
+        console.log('Restart already in progress, ignoring...');
+        return;
+      }
+
+      isRestartingRef.current = true;
+      console.log('Restarting playback...');
+
+      // Stop current playback
+      stop();
+
+      // Wait a bit longer to ensure stop() completes and audio nodes are disconnected
+      setTimeout(() => {
+        play();
+        isRestartingRef.current = false;
+      }, 50);
+    }, [stop, play]);
+
+    // Expose functions to parent via ref
     useImperativeHandle(ref, () => ({
-      toggleLoop: globalToggleLoop
+      toggleLoop: globalToggleLoop,
+      restart
     }));
 
     // Track when sample changes - stop current audio and decide whether to auto-play

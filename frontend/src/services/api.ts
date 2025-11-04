@@ -10,6 +10,7 @@ import type {
   BulkTagStatesResponse,
   Tag,
   TagMetadata,
+  FileLocationsResponse,
 } from '../types';
 import axios, { AxiosResponse } from 'axios';
 
@@ -24,9 +25,10 @@ const api = axios.create({
 
 // Request/Response types
 interface BrowseFoldersResponse {
-  folders: Array<{ name: string; path: string }>;
-  files: string[];
-  current_path: string;
+  path: string;
+  parent: string | null;
+  directories: string[];
+  files?: string[];
 }
 
 interface ScanFoldersRequest {
@@ -85,9 +87,50 @@ interface SearchParams {
   folder_ids?: number[];
 }
 
+interface DatabaseStatus {
+  exists: boolean;
+  path: string;
+  writable: boolean;
+  size: number | null;
+  samples_count: number | null;
+}
+
+interface DatabaseInitRequest {
+  mode: 'load' | 'create';
+  path: string;
+  name?: string;
+}
+
+interface DatabaseInitResponse {
+  success: boolean;
+  path: string;
+  error: string | null;
+}
+
+interface DatabaseInfo {
+  path: string;
+  size: number;
+  created: number;
+  modified: number;
+  samples: number;
+  tags: number;
+  collections: number;
+  folders: number;
+}
+
 // Folders
-export const browseFolders = (path?: string): Promise<AxiosResponse<BrowseFoldersResponse>> =>
-  api.get('/folders/browse', { params: { path } });
+export const browseFolders = (
+  path?: string,
+  includeFiles?: boolean,
+  fileFilter?: string
+): Promise<AxiosResponse<BrowseFoldersResponse>> =>
+  api.get('/folders/browse', {
+    params: {
+      path: path || undefined,
+      include_files: includeFiles || undefined,
+      file_filter: fileFilter || undefined,
+    },
+  });
 
 export const getScannedFolders = (): Promise<AxiosResponse<Folder[]>> =>
   api.get('/folders/scanned');
@@ -214,7 +257,32 @@ export const healthCheck = (): Promise<AxiosResponse<{ status: string; database:
   api.get('/health');
 
 // Database operations
+export const getDatabaseStatus = (): Promise<AxiosResponse<DatabaseStatus>> =>
+  api.get('/database/status');
+
+export const initializeDatabase = (data: DatabaseInitRequest): Promise<AxiosResponse<DatabaseInitResponse>> =>
+  api.post('/database/initialize', data);
+
+export const getDatabaseInfo = (): Promise<AxiosResponse<DatabaseInfo>> =>
+  api.get('/database/info');
+
 export const clearAllData = (): Promise<AxiosResponse<{ message: string }>> =>
   api.post('/database/clear');
+
+// File locations (for duplicate file handling)
+export const getFileLocations = (fileId: number): Promise<AxiosResponse<FileLocationsResponse>> =>
+  api.get(`/samples/${fileId}/locations`);
+
+export const setPrimaryLocation = (
+  fileId: number,
+  locationId: number
+): Promise<AxiosResponse<{ status: string; file_id: number; primary_location_id: number }>> =>
+  api.put(`/samples/${fileId}/locations/primary`, { location_id: locationId });
+
+export const deleteFileLocation = (
+  fileId: number,
+  locationId: number
+): Promise<AxiosResponse<{ status: string; file_id: number; location_id: number }>> =>
+  api.delete(`/samples/${fileId}/locations/${locationId}`);
 
 export default api;
