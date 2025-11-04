@@ -3,6 +3,8 @@
 ## Overview
 A desktop application for managing large audio sample libraries (100k-1M samples) with tagging, collections, and intelligent organization capabilities.
 
+Note - this does not work with Ableton Packs/Library since their files are AIF + Encrypted.
+
 ## Technology Stack
 
 ### Backend

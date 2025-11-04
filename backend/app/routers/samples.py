@@ -246,6 +246,7 @@ async def stream_audio(request: Request, file_id: int):
             raise HTTPException(status_code=404, detail="File not found")
 
         filepath_str = file["file_path"]
+        file_format = file["format"].lower().replace(".", "")
 
         # In demo mode, serve from demo audio folder
         if DEMO_MODE and filepath_str.startswith("/demo/audio/"):
@@ -265,6 +266,7 @@ async def stream_audio(request: Request, file_id: int):
             "mp3": "audio/mpeg",
             "flac": "audio/flac",
             "aiff": "audio/aiff",
+            "aif": "audio/aiff",
             "ogg": "audio/ogg",
             "m4a": "audio/mp4",
         }

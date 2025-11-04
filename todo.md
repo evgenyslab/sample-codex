@@ -5,9 +5,13 @@ BE/FE
 start application until db is selected
 - come up with process flow to handle de-synced files or moved files, reconciliation
 
+
 FE
 - COLOR Scheme issues
     - light background, a bunch of modals' text doesn't show up
+- processing toast is jittery - needs fixed size?
+- folder pane needs to alphabetically sort
+- folder pane|collect|filter, only regular click toggle selects one folder, control click adds, right click removes
 
 - Tag popup UI Improvement:
     - needs to bring all checked tags to top
@@ -33,6 +37,7 @@ it will retrigger the player (kind of like auto play)
 BE
 - come up with rescan/new scan mechanism to handle file moves, etc
 - unit tests
+- Can't peek into ableton package contents :thinking:
 - [future] db migration support
 
 BE-Demo

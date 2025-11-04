@@ -10,7 +10,7 @@ DATA_DIR.mkdir(exist_ok=True)
 DATABASE_PATH = str(DATA_DIR / "samples.db")
 
 # Audio settings
-AUDIO_FORMATS = [".wav", ".mp3", ".flac", ".aiff", ".ogg", ".m4a"]
+AUDIO_FORMATS = [".wav", ".mp3", ".flac", ".aiff", ".aif", ".ogg", ".m4a"]
 MAX_FILE_SIZE = 500 * 1024 * 1024  # 500MB
 SCAN_BATCH_SIZE = 1000
 

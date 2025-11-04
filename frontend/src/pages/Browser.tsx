@@ -110,7 +110,7 @@ export default function Browser() {
   const { data: allSamplesData } = useQuery({
     queryKey: ['samples-all'],
     queryFn: async () => {
-      const response = await listSamples({ page: 1, limit: 100000 })
+      const response = await listSamples({ page: 1, limit: 1000 })
       return response.data as unknown as SamplesResponse
     }
   })
