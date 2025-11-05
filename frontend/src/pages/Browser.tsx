@@ -13,8 +13,9 @@ import SettingsModal from '../components/SettingsModal.tsx'
 import Sidebar from '../components/Sidebar'
 import TagPopup from '../components/TagPopup/TagPopup.tsx'
 import { useAudioPlayer } from '../contexts/AudioPlayerContext'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useVirtualizer } from '@tanstack/react-virtual'
+import { toast } from 'sonner'
 
 interface TagsResponse {
   tags: Tag[]
@@ -49,6 +50,7 @@ interface TagSaveParams {
 export default function Browser() {
   // Get global audio player context
   const { selectedSample, setSelectedSample } = useAudioPlayer()
+  const queryClient = useQueryClient()
 
   const [isFolderBrowserOpen, setIsFolderBrowserOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
@@ -423,7 +425,7 @@ export default function Browser() {
   const handleTagSave = async ({ sampleIds, addTagIds, removeTagIds }: TagSaveParams) => {
     console.log('Saving tag changes:', { sampleIds, addTagIds, removeTagIds })
 
-    try {
+    const operation = async () => {
       await bulkUpdateSampleTags(sampleIds, addTagIds, removeTagIds)
       console.log('Tags updated successfully')
 
@@ -434,32 +436,39 @@ export default function Browser() {
       setIsTagPopupOpen(false)
       setSelectedSamples(new Set())
       setSelectionInfo(null)
-    } catch (error) {
-      console.error('Failed to update tags:', error)
-      // TODO: Show error message to user
     }
+
+    toast.promise(operation(), {
+      loading: `Tagging ${sampleIds.length} sample${sampleIds.length !== 1 ? 's' : ''}...`,
+      success: `Successfully tagged ${sampleIds.length} sample${sampleIds.length !== 1 ? 's' : ''}`,
+      error: 'Failed to update tags'
+    })
   }
 
   const handleCollectionSave = async (addCollectionIds: number[], removeCollectionIds: number[]) => {
     const sampleIds = Array.from(selectedSamples)
     console.log('Saving collection changes:', { sampleIds, addCollectionIds, removeCollectionIds })
 
-    try {
+    const operation = async () => {
       await bulkUpdateSampleCollections(sampleIds, addCollectionIds, removeCollectionIds)
       console.log('Collections updated successfully')
 
       // Refetch samples and collections to update the UI
       await refetchSamples()
       await refetchCollections()
+      queryClient.invalidateQueries({ queryKey: ['collections-metadata'] })
 
       // Close popup and clear selection
       setIsCollectionPopupOpen(false)
       setSelectedSamples(new Set())
       setSelectionInfo(null)
-    } catch (error) {
-      console.error('Failed to update collections:', error)
-      // TODO: Show error message to user
     }
+
+    toast.promise(operation(), {
+      loading: `Adding ${sampleIds.length} sample${sampleIds.length !== 1 ? 's' : ''} to collection...`,
+      success: `Successfully added ${sampleIds.length} sample${sampleIds.length !== 1 ? 's' : ''} to collection`,
+      error: 'Failed to update collections'
+    })
   }
 
   // Keyboard shortcuts for multi-select and navigation
@@ -509,12 +518,16 @@ export default function Browser() {
 
           if (limit_reached) {
             console.warn(`Selection limited to ${sample_ids.length} samples (max 10,000)`)
+            toast.warning(`Selection limited to 10,000 samples`, {
+              description: `Found ${total.toLocaleString()} matching samples, but only the first 10,000 were selected for performance reasons.`
+            })
           }
 
           // Close player when selecting multiple
           setSelectedSample(null)
         }).catch(error => {
           console.error('Failed to select all samples:', error)
+          toast.error('Failed to select all samples')
         })
       } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         // Navigate up/down through samples
@@ -607,6 +620,12 @@ export default function Browser() {
         e.preventDefault()
         if (samplePlayerRef.current) {
           samplePlayerRef.current.restart()
+        }
+      } else if (e.key === 'ArrowLeft' && selectedSample) {
+        // Stop playback
+        e.preventDefault()
+        if (samplePlayerRef.current) {
+          samplePlayerRef.current.stop()
         }
       }
     }
@@ -863,6 +882,14 @@ export default function Browser() {
                             {sample.location_count}x
                           </span>
                         )}
+                        {!!sample.is_orphaned && (
+                          <span
+                            className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/30 flex-shrink-0"
+                            title="This file has no valid locations. All file locations are missing or have been removed."
+                          >
+                            Missing
+                          </span>
+                        )}
                       </div>
                       <div className="w-32 px-4 py-2 text-muted-foreground font-mono text-xs">
                         {formatDuration((sample as any).duration)}
@@ -933,7 +960,10 @@ export default function Browser() {
         allCollections={collectionsData?.collections || []}
         samples={samplesData?.samples || []}
         onSave={handleCollectionSave}
-        onCollectionCreated={() => refetchCollections()}
+        onCollectionCreated={() => {
+          refetchCollections()
+          queryClient.invalidateQueries({ queryKey: ['collections-metadata'] })
+        }}
       />
     </div>
   )

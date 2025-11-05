@@ -21,6 +21,10 @@ const DuplicateLocationsModal = ({ isOpen, onClose, fileId, filename }: Duplicat
     queryKey: ['file-locations', fileId],
     queryFn: async () => {
       const response = await getFileLocations(fileId);
+      console.log('File locations response:', response.data);
+      response.data.locations.forEach((loc: FileLocation) => {
+        console.log(`Location ${loc.id}: is_primary = ${loc.is_primary} (type: ${typeof loc.is_primary})`);
+      });
       return response.data;
     },
     enabled: isOpen,
@@ -123,7 +127,7 @@ const DuplicateLocationsModal = ({ isOpen, onClose, fileId, filename }: Duplicat
                 <div
                   key={location.id}
                   className={`p-4 rounded-md border transition-colors ${
-                    location.is_primary
+                    !!location.is_primary
                       ? 'bg-blue-500/10 border-blue-500/30'
                       : 'bg-muted/50 border-border hover:border-border/80'
                   }`}
@@ -131,7 +135,7 @@ const DuplicateLocationsModal = ({ isOpen, onClose, fileId, filename }: Duplicat
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-2">
-                        {location.is_primary && (
+                        {!!location.is_primary && (
                           <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-500 text-white">
                             Primary
                           </span>
@@ -151,6 +155,7 @@ const DuplicateLocationsModal = ({ isOpen, onClose, fileId, filename }: Duplicat
                           onClick={() => handleSetPrimary(location.id)}
                           disabled={isUpdating}
                           className="px-3 py-1.5 text-xs font-medium bg-blue-500 hover:bg-blue-600 text-white rounded-md transition-colors disabled:opacity-50 disabled:pointer-events-none"
+                          title={`is_primary value: ${location.is_primary}`}
                         >
                           Set Primary
                         </button>

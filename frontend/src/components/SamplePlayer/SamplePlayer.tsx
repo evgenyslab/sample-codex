@@ -18,6 +18,7 @@ interface SamplePlayerProps {
 export interface SamplePlayerRef {
   toggleLoop: () => void;
   restart: () => void;
+  stop: () => void;
 }
 
 /**
@@ -86,7 +87,8 @@ const SamplePlayer = forwardRef<SamplePlayerRef, SamplePlayerProps>(
     // Expose functions to parent via ref
     useImperativeHandle(ref, () => ({
       toggleLoop: globalToggleLoop,
-      restart
+      restart,
+      stop
     }));
 
     // Track when sample changes - stop current audio and decide whether to auto-play

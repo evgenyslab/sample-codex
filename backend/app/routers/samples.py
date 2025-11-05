@@ -63,15 +63,22 @@ async def list_files(
         include_folders = [f.strip() for f in folders.split(",")] if folders else []
         exclude_folders_list = [f.strip() for f in exclude_folders.split(",")] if exclude_folders else []
 
-        # Build base query with location count
+        # Build base query with location count and orphaned status
         query = """
             SELECT DISTINCT
                 f.*,
                 fl.file_path as filepath,
                 fl.file_name as filename,
-                (SELECT COUNT(*) FROM file_locations WHERE file_id = f.id) as location_count
+                (SELECT COUNT(*) FROM file_locations WHERE file_id = f.id) as location_count,
+                CASE
+                    WHEN NOT EXISTS (
+                        SELECT 1 FROM file_locations
+                        WHERE file_id = f.id AND last_verified IS NOT NULL
+                    ) THEN 1
+                    ELSE 0
+                END as is_orphaned
             FROM files f
-            JOIN file_locations fl ON f.id = fl.file_id AND fl.is_primary = 1
+            LEFT JOIN file_locations fl ON f.id = fl.file_id AND fl.is_primary = 1
             WHERE f.indexed = 1
         """
         params = []
@@ -104,20 +111,20 @@ async def list_files(
         if include_folders:
             folder_conditions = " OR ".join(["fl.file_path LIKE ?" for _ in include_folders])
             query += f" AND ({folder_conditions})"
-            params.extend([f"{folder}%" for folder in include_folders])
+            params.extend([f"{folder.rstrip('/')}/%"  for folder in include_folders])
 
         # Exclude folders filter (file path must NOT start with ANY excluded folder)
         if exclude_folders_list:
             for folder in exclude_folders_list:
                 query += " AND fl.file_path NOT LIKE ?"
-                params.append(f"{folder}%")
+                params.append(f"{folder.rstrip('/')}/%")
 
         # Legacy folder_id filter (for backward compatibility)
         if folder_id:
             folder = conn.execute("SELECT path FROM folders WHERE id = ?", (folder_id,)).fetchone()
             if folder:
                 query += " AND fl.file_path LIKE ?"
-                params.append(f"{folder['path']}%")
+                params.append(f"{folder['path'].rstrip('/')}/%")
 
         # Search filter (filename or filepath contains search term)
         if search:
@@ -173,7 +180,7 @@ async def list_files(
         count_query = """
             SELECT COUNT(DISTINCT f.id) as total
             FROM files f
-            JOIN file_locations fl ON f.id = fl.file_id AND fl.is_primary = 1
+            LEFT JOIN file_locations fl ON f.id = fl.file_id AND fl.is_primary = 1
             WHERE f.indexed = 1
         """
         count_params = []
@@ -202,18 +209,18 @@ async def list_files(
         if include_folders:
             folder_conditions = " OR ".join(["fl.file_path LIKE ?" for _ in include_folders])
             count_query += f" AND ({folder_conditions})"
-            count_params.extend([f"{folder}%" for folder in include_folders])
+            count_params.extend([f"{folder.rstrip('/')}/%"  for folder in include_folders])
 
         if exclude_folders_list:
             for folder in exclude_folders_list:
                 count_query += " AND fl.file_path NOT LIKE ?"
-                count_params.append(f"{folder}%")
+                count_params.append(f"{folder.rstrip('/')}/%")
 
         if folder_id:
             folder = conn.execute("SELECT path FROM folders WHERE id = ?", (folder_id,)).fetchone()
             if folder:
                 count_query += " AND fl.file_path LIKE ?"
-                count_params.append(f"{folder['path']}%")
+                count_params.append(f"{folder['path'].rstrip('/')}/%")
 
         if search:
             count_query += " AND (fl.file_name LIKE ? OR fl.file_path LIKE ?)"
@@ -436,12 +443,12 @@ async def select_all_samples(request: Request, filters: SelectAllRequest):
         if include_folders_list:
             folder_conditions = " OR ".join(["fl.file_path LIKE ?" for _ in include_folders_list])
             query += f" AND ({folder_conditions})"
-            params.extend([f"{folder}%" for folder in include_folders_list])
+            params.extend([f"{folder.rstrip('/')}/%"  for folder in include_folders_list])
 
         if exclude_folders_list:
             for folder in exclude_folders_list:
                 query += " AND fl.file_path NOT LIKE ?"
-                params.append(f"{folder}%")
+                params.append(f"{folder.rstrip('/')}/%")
 
         if filters.search:
             query += " AND (fl.file_name LIKE ? OR fl.file_path LIKE ?)"

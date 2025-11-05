@@ -102,21 +102,33 @@ export default function FilterPane<T extends FilterItem = FilterItem>({
       );
     }
 
-    // Sort highlighted items to top
-    if (effectiveHighlightedItems.length > 0) {
-      filtered = [...filtered].sort((a, b) => {
-        const aHighlighted = effectiveHighlightedItems.includes(getItemId(a));
-        const bHighlighted = effectiveHighlightedItems.includes(getItemId(b));
+    // For tags, group by sample count and sort alphabetically within each group
+    if (type === 'tags') {
+      const withSamples = filtered.filter(item => (item.sample_count ?? 0) >= 1);
+      const withoutSamples = filtered.filter(item => (item.sample_count ?? 0) === 0);
 
-        if (aHighlighted && !bHighlighted) return -1;
-        if (!aHighlighted && bHighlighted) return 1;
-        return 0;
-      });
+      // Sort each group alphabetically by name
+      withSamples.sort((a, b) => getItemLabel(a).localeCompare(getItemLabel(b)));
+      withoutSamples.sort((a, b) => getItemLabel(a).localeCompare(getItemLabel(b)));
+
+      // Combine: tags with samples first, then tags without samples
+      filtered = [...withSamples, ...withoutSamples];
+    } else {
+      // For non-tags, sort highlighted items to top
+      if (effectiveHighlightedItems.length > 0) {
+        filtered = [...filtered].sort((a, b) => {
+          const aHighlighted = effectiveHighlightedItems.includes(getItemId(a));
+          const bHighlighted = effectiveHighlightedItems.includes(getItemId(b));
+
+          if (aHighlighted && !bHighlighted) return -1;
+          if (!aHighlighted && bHighlighted) return 1;
+          return 0;
+        });
+      }
     }
 
-
     return filtered;
-  }, [items, searchQuery, effectiveHighlightedItems, getItemLabel, getItemId]);
+  }, [items, searchQuery, effectiveHighlightedItems, getItemLabel, getItemId, type]);
 
   const handleItemClick = (itemId: number, isRightClick: boolean) => {
     if (onItemClick) {
@@ -168,7 +180,7 @@ export default function FilterPane<T extends FilterItem = FilterItem>({
             </div>
           ) : (
             <div className="space-y-1">
-              {filteredItems.map((item) => {
+              {filteredItems.map((item, index) => {
                 const itemId = getItemId(item);
                 const itemLabel = getItemLabel(item);
                 const sampleCount = item.sample_count;
@@ -176,49 +188,62 @@ export default function FilterPane<T extends FilterItem = FilterItem>({
                 const isExcluded = effectiveExcludedItems.includes(itemId);
                 const isHighlighted = effectiveHighlightedItems.includes(itemId);
 
+                // Check if we need to insert a separator (for tags only)
+                const showSeparator = type === 'tags' &&
+                  index > 0 &&
+                  (filteredItems[index - 1].sample_count ?? 0) >= 1 &&
+                  (item.sample_count ?? 0) === 0;
+
                 return (
-                  <div
-                    key={itemId}
-                    className={`
-                      flex items-center justify-between px-3 py-2 rounded-md text-sm cursor-pointer transition-colors
-                      ${isIncluded ? 'bg-green-500/50 text-primary-foreground' : ''}
-                      ${isExcluded ? 'bg-red-500 text-white' : ''}
-                      ${!isIncluded && !isExcluded && isHighlighted ? 'bg-yellow-500/20 outline-1 outline-yellow-500 dark:bg-yellow-200/10' : ''}
-                      ${!isIncluded && !isExcluded && !isHighlighted ? 'hover:bg-accent hover:text-accent-foreground' : ''}
-                    `}
-                    onClick={() => handleItemClick(itemId, false)}
-                    onContextMenu={(e) => {
-                      if (showExclude) {
-                        e.preventDefault();
-                        handleItemClick(itemId, true);
-                      }
-                    }}
-                    title={showExclude ? 'Left-click to include, right-click to exclude' : 'Click to select'}
-                  >
-                    <span className="flex-1 truncate">{itemLabel}</span>
-                    <div className="flex items-center gap-2">
-                      {sampleCount !== undefined && (
-                        <span className="text-xs text-muted-foreground font-mono">
-                          {sampleCount}
-                        </span>
-                      )}
-                      {(isIncluded || isExcluded) && (
-                        <button
-                          onClick={(e) => {
-                            if (isIncluded) {
-                              handleRemoveIncluded(e, itemId);
-                            } else {
-                              handleRemoveExcluded(e, itemId);
-                            }
-                          }}
-                          className="ml-1 hover:opacity-70 transition-opacity"
-                          title="Remove filter"
-                        >
-                          <XIcon className="w-3 h-3" />
-                        </button>
-                      )}
+                  <>
+                    {showSeparator && (
+                      <div key={`separator-${itemId}`} className="py-1.5">
+                        <div className="border-t border-border/50" />
+                      </div>
+                    )}
+                    <div
+                      key={itemId}
+                      className={`
+                        flex items-center justify-between px-3 py-2 rounded-md text-sm cursor-pointer transition-colors
+                        ${isIncluded ? 'bg-green-500/50 text-primary-foreground' : ''}
+                        ${isExcluded ? 'bg-red-500 text-white' : ''}
+                        ${!isIncluded && !isExcluded && isHighlighted ? 'bg-yellow-500/20 outline-1 outline-yellow-500 dark:bg-yellow-200/10' : ''}
+                        ${!isIncluded && !isExcluded && !isHighlighted ? 'hover:bg-accent hover:text-accent-foreground' : ''}
+                      `}
+                      onClick={() => handleItemClick(itemId, false)}
+                      onContextMenu={(e) => {
+                        if (showExclude) {
+                          e.preventDefault();
+                          handleItemClick(itemId, true);
+                        }
+                      }}
+                      title={showExclude ? 'Left-click to include, right-click to exclude' : 'Click to select'}
+                    >
+                      <span className="flex-1 truncate">{itemLabel}</span>
+                      <div className="flex items-center gap-2">
+                        {sampleCount !== undefined && (
+                          <span className="text-xs text-muted-foreground font-mono">
+                            {sampleCount}
+                          </span>
+                        )}
+                        {(isIncluded || isExcluded) && (
+                          <button
+                            onClick={(e) => {
+                              if (isIncluded) {
+                                handleRemoveIncluded(e, itemId);
+                              } else {
+                                handleRemoveExcluded(e, itemId);
+                              }
+                            }}
+                            className="ml-1 hover:opacity-70 transition-opacity"
+                            title="Remove filter"
+                          >
+                            <XIcon className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  </div>
+                  </>
                 );
               })}
             </div>

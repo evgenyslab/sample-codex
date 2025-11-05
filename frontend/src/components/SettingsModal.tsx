@@ -2,9 +2,11 @@ import { XIcon, MoonIcon, SunIcon } from './ui/Icons';
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTheme } from '../contexts/ThemeContext';
-import { clearAllData, healthCheck, initializeDatabase } from '../services/api';
+import { clearAllData, healthCheck, initializeDatabase, reconcileDatabase } from '../services/api';
 import { toast } from 'sonner';
 import FolderBrowserModal from './FolderBrowserModal';
+import OrphanedFilesModal from './OrphanedFilesModal';
+import type { ReconcileStats } from '../types';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -15,6 +17,9 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
   const [isClearing, setIsClearing] = useState(false);
   const [showDatabaseBrowser, setShowDatabaseBrowser] = useState(false);
   const [databasePath, setDatabasePath] = useState<string>('');
+  const [isReconciling, setIsReconciling] = useState(false);
+  const [reconcileStats, setReconcileStats] = useState<ReconcileStats | null>(null);
+  const [showOrphanedFilesModal, setShowOrphanedFilesModal] = useState(false);
   const queryClient = useQueryClient();
   const { theme, toggleTheme } = useTheme();
 
@@ -98,6 +103,42 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
     }
   };
 
+  const handleReconcile = async () => {
+    setIsReconciling(true);
+    setReconcileStats(null);
+
+    try {
+      const response = await reconcileDatabase();
+      setReconcileStats(response.data.stats);
+
+      if (response.data.stats.orphaned_files > 0) {
+        toast.warning(
+          `Reconciliation complete. Found ${response.data.stats.orphaned_files} orphaned file(s).`,
+          {
+            action: {
+              label: 'View',
+              onClick: () => setShowOrphanedFilesModal(true),
+            },
+          }
+        );
+      } else {
+        toast.success('Reconciliation complete. All files are accessible.');
+      }
+
+      // Refetch samples to update any visual indicators
+      queryClient.invalidateQueries({ queryKey: ['samples'] });
+    } catch (error) {
+      console.error('Failed to reconcile database:', error);
+      toast.error('Failed to reconcile database');
+    } finally {
+      setIsReconciling(false);
+    }
+  };
+
+  const handleViewOrphanedFiles = () => {
+    setShowOrphanedFilesModal(true);
+  };
+
 
   return (
     <div
@@ -151,6 +192,62 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
               </button>
             </div>
 
+            {/* Reconcile Database */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between p-3 bg-amber-500/10 rounded-md border border-amber-500/20">
+                <div>
+                  <p className="text-sm text-card-foreground">Reconcile Database</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Verify all file locations and mark missing files
+                  </p>
+                </div>
+                <button
+                  onClick={handleReconcile}
+                  disabled={isReconciling}
+                  className="px-3 py-1.5 text-xs font-medium bg-amber-500 hover:bg-amber-600 text-white rounded-md transition-colors disabled:opacity-50 disabled:pointer-events-none"
+                >
+                  {isReconciling ? 'Reconciling...' : 'Reconcile'}
+                </button>
+              </div>
+
+              {/* Reconcile Stats */}
+              {reconcileStats && (
+                <div className="p-3 bg-muted/50 rounded-md border border-border text-xs space-y-1">
+                  <p className="font-medium text-card-foreground mb-2">Reconciliation Results:</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <span className="text-muted-foreground">Total Files:</span>{' '}
+                      <span className="text-card-foreground font-mono">{reconcileStats.total_files}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Total Locations:</span>{' '}
+                      <span className="text-card-foreground font-mono">{reconcileStats.total_locations}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Valid:</span>{' '}
+                      <span className="text-green-500 font-mono">{reconcileStats.valid_locations}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Missing:</span>{' '}
+                      <span className="text-red-500 font-mono">{reconcileStats.missing_locations}</span>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-muted-foreground">Orphaned Files:</span>{' '}
+                      <span className="text-amber-500 font-mono">{reconcileStats.orphaned_files}</span>
+                      {reconcileStats.orphaned_files > 0 && (
+                        <button
+                          onClick={handleViewOrphanedFiles}
+                          className="ml-2 text-amber-500 hover:text-amber-600 underline"
+                        >
+                          View
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Clear All Data */}
             <div className="flex items-center justify-between p-3 bg-red-500/10 rounded-md border border-red-500/20">
               <div>
@@ -201,6 +298,12 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
           fileFilter=".db"
         />
       )}
+
+      {/* Orphaned Files Modal */}
+      <OrphanedFilesModal
+        isOpen={showOrphanedFilesModal}
+        onClose={() => setShowOrphanedFilesModal(false)}
+      />
     </div>
   );
 };

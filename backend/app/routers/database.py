@@ -5,10 +5,10 @@ import os
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from app.db_connection import db
+from app.db_connection import db, get_db_connection
 
 logger = logging.getLogger(__name__)
 
@@ -247,4 +247,110 @@ async def get_database_info() -> dict[str, Any]:
         raise
     except Exception as e:
         logger.error(f"Failed to get database info: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.post("/reconcile")
+async def reconcile_database() -> dict[str, Any]:
+    """
+    Reconcile database - verify all file locations exist on disk
+
+    Files with missing locations are preserved but marked as unavailable.
+    Tags, collections, and metadata remain intact.
+
+    Returns:
+        Reconciliation statistics including orphaned files count
+    """
+    try:
+        from app.services.reconciler import reconcile_files
+
+        stats = reconcile_files()
+
+        return {"status": "complete", "stats": stats}
+    except Exception as e:
+        logger.error(f"Reconciliation failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.get("/orphaned-files")
+async def get_orphaned_files(request: Request) -> dict[str, Any]:
+    """
+    Get list of files that have no valid locations
+
+    These files still have all their metadata (tags, collections) but cannot be played.
+    Shows last known location for reference.
+
+    Returns:
+        List of orphaned files with their metadata
+    """
+    try:
+        with get_db_connection(request) as conn:
+            orphaned = conn.execute(
+                """
+                SELECT
+                    f.id,
+                    f.file_hash,
+                    f.format,
+                    f.file_size,
+                    f.duration,
+                    f.alias,
+                    f.created_at,
+                    -- Get last known location (most recently verified)
+                    (
+                        SELECT fl.file_path
+                        FROM file_locations fl
+                        WHERE fl.file_id = f.id
+                        ORDER BY fl.last_verified DESC NULLS LAST, fl.discovered_at DESC
+                        LIMIT 1
+                    ) as last_known_path,
+                    -- Count total locations (including missing)
+                    (SELECT COUNT(*) FROM file_locations WHERE file_id = f.id) as location_count,
+                    -- Count missing locations
+                    (SELECT COUNT(*) FROM file_locations WHERE file_id = f.id AND last_verified IS NULL) as missing_count
+                FROM files f
+                WHERE f.indexed = 1
+                AND NOT EXISTS (
+                    SELECT 1 FROM file_locations fl
+                    WHERE fl.file_id = f.id AND fl.last_verified IS NOT NULL
+                )
+                ORDER BY f.created_at DESC
+            """
+            ).fetchall()
+
+            # Get tags and collections for each orphaned file
+            result = []
+            for file in orphaned:
+                file_dict = dict(file)
+
+                # Get tags
+                tags = conn.execute(
+                    """
+                    SELECT t.id, t.name, t.color
+                    FROM tags t
+                    JOIN file_tags ft ON t.id = ft.tag_id
+                    WHERE ft.file_id = ?
+                    ORDER BY t.name
+                """,
+                    (file["id"],),
+                ).fetchall()
+                file_dict["tags"] = [dict(t) for t in tags]
+
+                # Get collections
+                collections = conn.execute(
+                    """
+                    SELECT c.id, c.name
+                    FROM collections c
+                    JOIN collection_items ci ON c.id = ci.collection_id
+                    WHERE ci.file_id = ?
+                    ORDER BY c.name
+                """,
+                    (file["id"],),
+                ).fetchall()
+                file_dict["collections"] = [dict(c) for c in collections]
+
+                result.append(file_dict)
+
+            return {"orphaned_files": result, "total": len(result)}
+    except Exception as e:
+        logger.error(f"Failed to get orphaned files: {e}")
         raise HTTPException(status_code=500, detail=str(e)) from e

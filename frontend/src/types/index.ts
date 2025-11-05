@@ -30,6 +30,7 @@ export interface Sample {
   created_at?: string;
   updated_at?: string;
   location_count?: number; // Number of locations (duplicates) for this file
+  is_orphaned?: boolean; // True if file has no valid locations
 }
 
 // WebSocket message types
@@ -199,11 +200,42 @@ export interface FileLocation {
   file_name: string;
   discovered_at: string;
   last_verified: string;
-  is_primary: boolean;
+  is_primary: boolean | number; // SQLite returns 0/1 as integers
 }
 
 export interface FileLocationsResponse {
   file_id: number;
   locations: FileLocation[];
   has_duplicates: boolean;
+}
+
+// Reconciliation types
+export interface ReconcileStats {
+  total_files: number;
+  total_locations: number;
+  valid_locations: number;
+  missing_locations: number;
+  orphaned_files: number;
+  missing_details: Array<{
+    file_id: number;
+    file_hash: string;
+    location_id: number;
+    file_path: string;
+    was_primary: boolean;
+  }>;
+}
+
+export interface OrphanedFile {
+  id: number;
+  file_hash: string;
+  format: string;
+  file_size: number | null;
+  duration: number | null;
+  alias: string | null;
+  created_at: string;
+  last_known_path: string;
+  location_count: number;
+  missing_count: number;
+  tags: Tag[];
+  collections: Collection[];
 }

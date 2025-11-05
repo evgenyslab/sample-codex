@@ -11,6 +11,8 @@ import type {
   Tag,
   TagMetadata,
   FileLocationsResponse,
+  ReconcileStats,
+  OrphanedFile,
 } from '../types';
 import axios, { AxiosResponse } from 'axios';
 
@@ -268,6 +270,12 @@ export const getDatabaseInfo = (): Promise<AxiosResponse<DatabaseInfo>> =>
 
 export const clearAllData = (): Promise<AxiosResponse<{ message: string }>> =>
   api.post('/database/clear');
+
+export const reconcileDatabase = (): Promise<AxiosResponse<{ status: string; stats: ReconcileStats }>> =>
+  api.post('/database/reconcile');
+
+export const getOrphanedFiles = (): Promise<AxiosResponse<{ orphaned_files: OrphanedFile[]; total: number }>> =>
+  api.get('/database/orphaned-files');
 
 // File locations (for duplicate file handling)
 export const getFileLocations = (fileId: number): Promise<AxiosResponse<FileLocationsResponse>> =>
