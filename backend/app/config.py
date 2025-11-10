@@ -16,7 +16,7 @@ SCAN_BATCH_SIZE = 1000
 
 # Server settings
 HOST = "127.0.0.1"
-PORT = 8000
+PORT = 8787
 
 # Frontend settings (for production build)
 # Use demo-dist for Railway demo deployment, dist for local production
@@ -28,9 +28,9 @@ ITEMS_PER_PAGE = 100
 # CORS
 ALLOWED_ORIGINS = [
     "http://localhost:5173",  # Vite dev server
-    "http://localhost:8000",  # Production
+    "http://localhost:8787",  # Production
     "http://127.0.0.1:5173",
-    "http://127.0.0.1:8000",
+    "http://127.0.0.1:8787",
 ]
 
 # In demo mode (Railway), allow all origins for the demo deployment

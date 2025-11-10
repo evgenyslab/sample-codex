@@ -21,6 +21,7 @@ import {
 
 interface IconProps {
   className?: string;
+  style?: React.CSSProperties;
 }
 
 // Re-export with consistent naming and default size
@@ -36,8 +37,8 @@ export const FolderFilledIcon = ({ className = "w-4 h-4" }: IconProps) => (
   <IconFolderFilled className={className} />
 );
 
-export const TagIcon = ({ className = "w-4 h-4" }: IconProps) => (
-  <IconTag className={className} stroke={1.5} />
+export const TagIcon = ({ className = "w-4 h-4", style }: IconProps) => (
+  <IconTag className={className} stroke={1.5} style={style} />
 );
 
 export const TagFilledIcon = ({ className = "w-4 h-4" }: IconProps) => (

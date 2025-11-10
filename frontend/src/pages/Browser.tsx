@@ -1,25 +1,22 @@
-import type { AppStats, HealthStatus, Sample, ListSamplesParams, Tag, Collection, Folder } from '../types'
+import type { AppStats, Collection, Folder, HealthStatus, ListSamplesParams, Sample, TagMetadata } from '../types'
 import { CollectionIcon, SearchIcon, TagIcon } from '../components/ui/Icons'
-import { bulkUpdateSampleCollections, bulkUpdateSampleTags, getScannedFolders, healthCheck, listCollections, listSamples, listTags, selectAllSamples } from '../services/api'
+import SamplePlayer, { SamplePlayerRef } from '../components/SamplePlayer/SamplePlayer'
+import { bulkUpdateSampleCollections, bulkUpdateSampleTags, getScannedFolders, getTagsMetadata, healthCheck, listCollections, listSamples, selectAllSamples } from '../services/api'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 
 import CollectionPopup from '../components/CollectionPopup/CollectionPopup.tsx'
 import DuplicateLocationsModal from '../components/DuplicateLocationsModal'
 import FilterPane from '../components/FilterPane'
 import FolderBrowserModal from '../components/FolderBrowserModal.tsx'
 import FolderTreePane from '../components/FolderTreePane'
-import SamplePlayer, { SamplePlayerRef } from '../components/SamplePlayer/SamplePlayer'
 import SettingsModal from '../components/SettingsModal.tsx'
 import Sidebar from '../components/Sidebar'
 import TagPopup from '../components/TagPopup/TagPopup.tsx'
-import { useAudioPlayer } from '../contexts/AudioPlayerContext'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useVirtualizer } from '@tanstack/react-virtual'
+import { generateTagColors } from '../utils/tagColorGenerator'
 import { toast } from 'sonner'
-
-interface TagsResponse {
-  tags: Tag[]
-}
+import { useAudioPlayer } from '../contexts/AudioPlayerContext'
+import { useVirtualizer } from '@tanstack/react-virtual'
 
 interface CollectionsResponse {
   collections: Collection[]
@@ -102,6 +99,9 @@ export default function Browser() {
 
   const tableRef = useRef<HTMLDivElement | null>(null)
 
+  // Tag color mapping (auto-generated based on alphabetical order)
+  const [tagColorMap, setTagColorMap] = useState<Map<number, string>>(new Map())
+
   // Persist pane visibility to localStorage when it changes
   useEffect(() => {
     localStorage.setItem('browser-tags-pane-visible', isLeftPaneVisible.toString())
@@ -180,8 +180,14 @@ export default function Browser() {
   const { data: tagsData, refetch: refetchTags } = useQuery({
     queryKey: ['tags'],
     queryFn: async () => {
-      const response = await listTags()
-      return response.data as unknown as TagsResponse
+      const response = await getTagsMetadata()
+      const tags = response.data.tags
+
+      // Generate colors for tags with samples
+      const colors = generateTagColors(tags)
+      setTagColorMap(colors)
+
+      return { tags } as { tags: TagMetadata[] }
     }
   })
 
@@ -658,6 +664,7 @@ export default function Browser() {
           onToggleVisibility={setIsLeftPaneVisible}
           showExclude={true}
           collapsedIcon={TagIcon}
+          tagColorMap={tagColorMap}
         />
 
         {/* Collections Filter Pane */}
@@ -688,7 +695,7 @@ export default function Browser() {
         />
 
         {/* Right Pane - Sample Browser */}
-        <div className="flex-1 flex flex-col bg-card/80 backdrop-blur-md rounded-lg border border-border overflow-hidden relative">
+        <div className="flex-1 flex flex-col bg-card/80 backdrop-blur-md rounded-lg border border-border overflow-hidden">
           {/* Sample Search & Selection Count */}
           <div className="p-2 border-b border-border flex items-center gap-2">
             <div className="relative flex-1">
@@ -739,7 +746,6 @@ export default function Browser() {
           <div
             ref={tableRef}
             className="flex-1 overflow-auto"
-            style={{ paddingBottom: isPlayerOpen ? '200px' : '0' }}
           >
             <div className="min-w-full">
               {/* Table Header */}
@@ -868,6 +874,31 @@ export default function Browser() {
                     >
                       <div className="flex-1 px-4 py-2 flex items-center gap-2">
                         <span className="truncate text-foreground">{sample.filename}</span>
+                        {/* Tag icons with overlap effect */}
+                        {sample.tags && sample.tags.length > 0 && (
+                          <div className="flex ml-2">
+                            {sample.tags.map((tag) => {
+                              const color = tagColorMap.get(tag.id)
+                              return (
+                                <div
+                                  key={tag.id}
+                                  className=""
+                                  title={tag.name}
+                                  onClick={() => {
+                                    /* Here, only want tag SELECT option, if already selected, do not remove! */
+                                    handleTagClick(tag.id)
+                                  }}
+                                >
+                                  <TagIcon
+                                    className="w-4 h-4 drop-shadow-sm -ml-2 transition-all duration-200 hover:z-10 hover:mr-2"
+                                    style={{ fill: color || '#6b7280', color: color || '#6b7280' }}
+                                   
+                                  />
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
                         {sample.location_count && sample.location_count > 1 && (
                           <span
                             className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 border border-yellow-500/30 cursor-pointer hover:bg-yellow-500/30 transition-colors flex-shrink-0"

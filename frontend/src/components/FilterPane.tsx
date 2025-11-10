@@ -29,6 +29,7 @@ interface FilterPaneProps<T extends FilterItem = FilterItem> {
   getItemId?: (item: T) => number;
   showExclude?: boolean;
   collapsedIcon?: React.ComponentType<{ className?: string }>;
+  tagColorMap?: Map<number, string>; // Color mapping for tags (auto-generated)
 }
 
 /**
@@ -50,6 +51,7 @@ export default function FilterPane<T extends FilterItem = FilterItem>({
   getItemId = (item) => item.id,
   showExclude = true,
   collapsedIcon: CollapsedIcon = TagIcon,
+  tagColorMap,
 }: FilterPaneProps<T>) {
   // Use constant empty arrays if props not provided to avoid re-renders
   const effectiveIncludedItems = includedItems || EMPTY_NUMBER_ARRAY;
@@ -87,7 +89,7 @@ export default function FilterPane<T extends FilterItem = FilterItem>({
 
   const isLoading = (type === 'tags' && tagsLoading) || (type === 'collections' && collectionsLoading);
 
-  // Filter items based on search, and sort highlighted items to top
+  // Filter items based on search, and sort selected/highlighted items to top
   const filteredItems = useMemo(() => {
     if (!items) return [];
 
@@ -102,17 +104,29 @@ export default function FilterPane<T extends FilterItem = FilterItem>({
       );
     }
 
-    // For tags, group by sample count and sort alphabetically within each group
+    // For tags, move selected (included or excluded) tags to top
     if (type === 'tags') {
-      const withSamples = filtered.filter(item => (item.sample_count ?? 0) >= 1);
-      const withoutSamples = filtered.filter(item => (item.sample_count ?? 0) === 0);
+      const selected = filtered.filter(item => {
+        const itemId = getItemId(item);
+        return effectiveIncludedItems.includes(itemId) || effectiveExcludedItems.includes(itemId);
+      });
+      const unselected = filtered.filter(item => {
+        const itemId = getItemId(item);
+        return !effectiveIncludedItems.includes(itemId) && !effectiveExcludedItems.includes(itemId);
+      });
 
-      // Sort each group alphabetically by name
-      withSamples.sort((a, b) => getItemLabel(a).localeCompare(getItemLabel(b)));
-      withoutSamples.sort((a, b) => getItemLabel(a).localeCompare(getItemLabel(b)));
+      // Sort selected alphabetically
+      selected.sort((a, b) => getItemLabel(a).localeCompare(getItemLabel(b)));
 
-      // Combine: tags with samples first, then tags without samples
-      filtered = [...withSamples, ...withoutSamples];
+      // Sort unselected: group by sample count, then alphabetically
+      const unselectedWithSamples = unselected.filter(item => (item.sample_count ?? 0) >= 1);
+      const unselectedWithoutSamples = unselected.filter(item => (item.sample_count ?? 0) === 0);
+
+      unselectedWithSamples.sort((a, b) => getItemLabel(a).localeCompare(getItemLabel(b)));
+      unselectedWithoutSamples.sort((a, b) => getItemLabel(a).localeCompare(getItemLabel(b)));
+
+      // Combine: selected first, then unselected with samples, then unselected without samples
+      filtered = [...selected, ...unselectedWithSamples, ...unselectedWithoutSamples];
     } else {
       // For non-tags, sort highlighted items to top
       if (effectiveHighlightedItems.length > 0) {
@@ -128,7 +142,7 @@ export default function FilterPane<T extends FilterItem = FilterItem>({
     }
 
     return filtered;
-  }, [items, searchQuery, effectiveHighlightedItems, getItemLabel, getItemId, type]);
+  }, [items, searchQuery, effectiveIncludedItems, effectiveExcludedItems, effectiveHighlightedItems, getItemLabel, getItemId, type]);
 
   const handleItemClick = (itemId: number, isRightClick: boolean) => {
     if (onItemClick) {
@@ -188,11 +202,43 @@ export default function FilterPane<T extends FilterItem = FilterItem>({
                 const isExcluded = effectiveExcludedItems.includes(itemId);
                 const isHighlighted = effectiveHighlightedItems.includes(itemId);
 
+                // Get tag color for styling (if available)
+                const tagColor = type === 'tags' && tagColorMap ? tagColorMap.get(itemId) : null;
+
+                // Calculate background color
+                let backgroundColor: string | undefined;
+                let textColor: string | undefined;
+
+                if (type === 'tags' && tagColor) {
+                  // For tags with colors, use the tag color with 50% transparency
+                  if (isIncluded || isHighlighted) {
+                    // Convert hex to rgba with 50% opacity
+                    const hex = tagColor.replace('#', '');
+                    const r = parseInt(hex.substring(0, 2), 16);
+                    const g = parseInt(hex.substring(2, 4), 16);
+                    const b = parseInt(hex.substring(4, 6), 16);
+                    backgroundColor = `rgba(${r}, ${g}, ${b}, 0.5)`;
+                  } else if (isExcluded) {
+                    backgroundColor = 'rgb(239, 68, 68)'; // red-500
+                    textColor = 'white';
+                  }
+                }
+
                 // Check if we need to insert a separator (for tags only)
-                const showSeparator = type === 'tags' &&
-                  index > 0 &&
-                  (filteredItems[index - 1].sample_count ?? 0) >= 1 &&
-                  (item.sample_count ?? 0) === 0;
+                // Show separator between selected and unselected tags, or between tags with/without samples
+                const prevItem = filteredItems[index - 1];
+                const prevItemId = prevItem ? getItemId(prevItem) : null;
+                const prevIsSelected = prevItemId ?
+                  (effectiveIncludedItems.includes(prevItemId) || effectiveExcludedItems.includes(prevItemId)) : false;
+                const currentIsSelected = isIncluded || isExcluded;
+
+                const showSeparator = type === 'tags' && index > 0 && (
+                  // Separator between selected and unselected
+                  (prevIsSelected && !currentIsSelected) ||
+                  // Separator between tags with samples and without (only in unselected section)
+                  (!prevIsSelected && !currentIsSelected &&
+                   (prevItem?.sample_count ?? 0) >= 1 && (item.sample_count ?? 0) === 0)
+                );
 
                 return (
                   <>
@@ -205,11 +251,12 @@ export default function FilterPane<T extends FilterItem = FilterItem>({
                       key={itemId}
                       className={`
                         flex items-center justify-between px-3 py-2 rounded-md text-sm cursor-pointer transition-colors
-                        ${isIncluded ? 'bg-green-500/50 text-primary-foreground' : ''}
-                        ${isExcluded ? 'bg-red-500 text-white' : ''}
-                        ${!isIncluded && !isExcluded && isHighlighted ? 'bg-yellow-500/20 outline-1 outline-yellow-500 dark:bg-yellow-200/10' : ''}
-                        ${!isIncluded && !isExcluded && !isHighlighted ? 'hover:bg-accent hover:text-accent-foreground' : ''}
+                        ${!backgroundColor && isIncluded ? 'bg-green-500/50 text-primary-foreground' : ''}
+                        ${!backgroundColor && isExcluded ? 'bg-red-500 text-white' : ''}
+                        ${!backgroundColor && !isIncluded && !isExcluded && isHighlighted ? 'bg-yellow-500/20 outline-1 outline-yellow-500 dark:bg-yellow-200/10' : ''}
+                        ${!backgroundColor && !isIncluded && !isExcluded && !isHighlighted ? 'hover:bg-accent hover:text-accent-foreground' : ''}
                       `}
+                      style={backgroundColor ? { backgroundColor, color: textColor } : undefined}
                       onClick={() => handleItemClick(itemId, false)}
                       onContextMenu={(e) => {
                         if (showExclude) {
@@ -219,7 +266,15 @@ export default function FilterPane<T extends FilterItem = FilterItem>({
                       }}
                       title={showExclude ? 'Left-click to include, right-click to exclude' : 'Click to select'}
                     >
-                      <span className="flex-1 truncate">{itemLabel}</span>
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        {type === 'tags' && tagColorMap && (
+                          <TagIcon
+                            className="flex-shrink-0 w-4 h-4"
+                            style={{ color: tagColorMap.get(itemId) || '#6b7280' }}
+                          />
+                        )}
+                        <span className="truncate">{itemLabel}</span>
+                      </div>
                       <div className="flex items-center gap-2">
                         {sampleCount !== undefined && (
                           <span className="text-xs text-muted-foreground font-mono">

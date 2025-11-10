@@ -170,7 +170,7 @@ def run_dev_mode():
         print_success(f"Frontend dev server started (PID: {frontend_process.pid})")
 
         print_header("Both servers are running!")
-        print_info("Backend: http://127.0.0.1:8000")
+        print_info("Backend: http://127.0.0.1:8787")
         print_info("Frontend: http://localhost:5173")
         print_info("\nPress Ctrl+C to stop both servers")
 

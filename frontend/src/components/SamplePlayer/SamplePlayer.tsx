@@ -1,13 +1,15 @@
-import { useState, useEffect, useCallback, useImperativeHandle, forwardRef, Ref, useRef } from 'react';
-import { Play, Square, X } from 'lucide-react';
-import WaveformDisplay from './WaveformDisplay';
-import useAudioPlayback from '../../hooks/useAudioPlayback';
-import audioCache from '../../utils/audioCache';
-import { useAudioPlayer } from '../../contexts/AudioPlayerContext';
-import type { Sample } from '../../types';
 import './SamplePlayer.css';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+import { Play, Square, X } from 'lucide-react';
+import { Ref, forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
+
+import type { Sample } from '../../types';
+import WaveformDisplay from './WaveformDisplay';
+import audioCache from '../../utils/audioCache';
+import useAudioPlayback from '../../hooks/useAudioPlayback';
+import { useAudioPlayer } from '../../contexts/AudioPlayerContext';
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787/api';
 
 interface SamplePlayerProps {
   sample: Sample | null;

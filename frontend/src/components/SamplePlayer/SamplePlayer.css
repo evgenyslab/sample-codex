@@ -1,13 +1,10 @@
 /* SamplePlayer Overlay */
 .sample-player-overlay {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 10;
+  width: 100%;
   background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(4px);
   animation: slideUp 0.2s ease-out;
+  flex-shrink: 0;
 }
 
 @keyframes slideUp {
@@ -26,7 +23,7 @@
   background: var(--bg-secondary);
   border-top: 1px solid var(--border);
   box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
-  max-height: 200px;
+  height: 200px;
   display: flex;
   flex-direction: column;
 }
@@ -187,7 +184,7 @@
 /* Responsive */
 @media (max-width: 768px) {
   .sample-player {
-    max-height: 350px;
+    height: 350px;
   }
 
   .sample-player-header {
